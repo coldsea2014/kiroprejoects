@@ -29,18 +29,42 @@
     <section id="tab-video" class="tab on">
       <div id="ctxBox" class="note small"></div>
       <details class="box" id="keysBox">
-        <summary>🔑 Clés API — <span id="keysState"></span></summary>
-        <div class="small">Clé Gemini — gratuite sur <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></div>
-        <div class="row"><input id="gKey" type="password" placeholder="AIza…" autocomplete="off" aria-label="Clé Gemini"><button id="gSave" class="small">Enregistrer et tester</button></div>
-        <div id="gState" class="small"></div>
-        <div class="small">Clé YouTube Data API v3 — gratuite : <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">activer l'API</a>, puis <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">créer une clé</a></div>
+        <summary>⚙️ Moteur IA & clés — <span id="keysState"></span></summary>
+        <div class="seg" id="engineSeg">
+          <label class="chk"><input type="radio" name="engine" value="web"> 💎 Gemini Pro — mon abonnement</label>
+          <label class="chk"><input type="radio" name="engine" value="api"> 🔑 API Gemini (clé AI Studio)</label>
+        </div>
+        <div id="webOpts">
+          <div class="small">TubePilot ouvre <b>gemini.google.com</b> dans une petite fenêtre, envoie la consigne avec le lien ou l'audio de la vidéo, récupère le JSON, remplit YouTube Studio puis ferme la fenêtre. Restez connecté à Gemini ; le modèle choisi dans Gemini (Pro ou Flash) est gardé.</div>
+          <label>Adresse de Gemini (2e compte Google : https://gemini.google.com/u/1/app)<input id="gUrl" placeholder="https://gemini.google.com/app"></label>
+          <div class="grid2">
+            <label>Demandes à Gemini
+              <select id="gSteps">
+                <option value="2">2 étapes : écoute, puis SEO avec les vraies recherches YouTube (meilleur)</option>
+                <option value="1">1 seule demande (plus rapide)</option>
+              </select>
+            </label>
+            <label>Fenêtre Gemini
+              <select id="gWin">
+                <option value="popup">Petite fenêtre dans le coin</option>
+                <option value="tab">Onglet en arrière-plan</option>
+              </select>
+            </label>
+          </div>
+          <label class="chk"><input type="checkbox" id="gClose"> Fermer Gemini dès que le JSON est récupéré</label>
+        </div>
+        <div id="apiOpts">
+          <div class="small">Clé Gemini — gratuite sur <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></div>
+          <div class="row"><input id="gKey" type="password" placeholder="AIza…" autocomplete="off" aria-label="Clé Gemini"><button id="gSave" class="small">Enregistrer et tester</button></div>
+          <div id="gState" class="small"></div>
+          <div class="grid2">
+            <label>Modèle principal (écoute + SEO)<select id="mMain"></select></label>
+            <label>Modèle rapide (tendances, accroches)<select id="mFast"></select></label>
+          </div>
+        </div>
+        <div class="small">Clé YouTube Data API v3 (optionnelle : concurrents, tendances YouTube) — gratuite : <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">activer l'API</a>, puis <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">créer une clé</a></div>
         <div class="row"><input id="yKey" type="password" placeholder="AIza…" autocomplete="off" aria-label="Clé YouTube Data API"><button id="ySave" class="small">Enregistrer et tester</button></div>
         <div id="yState" class="small"></div>
-        <div class="grid2">
-          <label>Modèle principal (écoute + SEO)<select id="mMain"></select></label>
-          <label>Modèle rapide (tendances, accroches)<select id="mFast"></select></label>
-        </div>
-        <div class="tiny muted">Pro = meilleure écoute ; Flash = plus rapide et plus de vidéos par jour en quota gratuit. Tout est aussi dans ⚙️ Réglages.</div>
       </details>
 
       <div class="box">
@@ -77,7 +101,7 @@
       </div>
 
       <details class="box" id="manualBox">
-        <summary>💎 Utiliser mon abonnement Gemini Pro (sans clé API)</summary>
+        <summary>📋 Copier-coller manuel dans Gemini (secours)</summary>
         <ol class="small">
           <li>Cliquez « Copier le prompt ».</li>
           <li>Ouvrez Gemini, <b>joignez votre vidéo ou le MP3</b>, choisissez le modèle le plus puissant et collez le prompt.</li>

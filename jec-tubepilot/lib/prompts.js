@@ -84,7 +84,8 @@ export const SEO_SCHEMA = OBJ({
   pinned_comment: STR('question qui fait commenter + renvoi au meilleur moment (horodatage mm:ss)'),
   thumbnail: OBJ({ texts: ARR(STR(), '3 textes de miniature de 2 à 4 mots'), concept: STR(), prompt: STR('prompt d\'image IA (anglais), sans visage de célébrité ni logo') }),
   short: OBJ({ title: STR(), description: STR() }),
-  compliance_notes: ARR(STR(), 'points de règlement YouTube à vérifier (français)')
+  compliance_notes: ARR(STR(), 'points de règlement YouTube à vérifier (français)'),
+  trends_found: OBJ({ keywords: ARR(STR()), hashtags: ARR(STR()), notes: STR() }, [])
 }, ['main_keyword', 'titles', 'ab_titles', 'description_intro', 'description_body', 'cta', 'tags', 'hashtags', 'pinned_comment', 'thumbnail']);
 
 export const HOOKS_SCHEMA = OBJ({
@@ -318,7 +319,78 @@ ${rules(ctx)}`;
   return { system, text };
 }
 
-/* ---------- 4. Mode manuel (abonnement Gemini dans gemini.google.com, sans clé API) ---------- */
+/* ---------- 4. Mode abonnement : gemini.google.com piloté par l'extension ---------- */
+// Modèle JSON lisible tiré d'un schéma (Gemini web n'accepte pas de schéma imposé)
+export function jsonExample(schema) {
+  switch (schema.type) {
+    case 'OBJECT': return Object.fromEntries(Object.entries(schema.properties).map(([k, v]) => [k, jsonExample(v)]));
+    case 'ARRAY': return [jsonExample(schema.items)];
+    case 'NUMBER': case 'INTEGER': return 0;
+    case 'BOOLEAN': return false;
+    default: return schema.enum ? schema.enum.join(' | ') : (schema.description ? `<${schema.description}>` : '');
+  }
+}
+
+export const jsonFormat = (schema) => `FORMAT DE RÉPONSE OBLIGATOIRE : UN SEUL bloc de code JSON valide, sans aucun texte avant ni après, avec exactement ces clés (les <…> décrivent ce qu'il faut mettre) :
+\`\`\`json
+${JSON.stringify(jsonExample(schema), null, 1)}
+\`\`\``;
+
+export function webAnalysisPrompt(ctx, { link = '' } = {}) {
+  const a = analysisPrompt(ctx);
+  return `${a.system}
+
+${link ? `VIDÉO À ANALYSER : ${link}
+Ouvre cette vidéo YouTube avec ton outil YouTube, regarde-la et écoute-la EN ENTIER.` : 'Le fichier audio joint est la bande-son complète de la vidéo : écoute-le EN ENTIER.'}
+Si tu ne peux PAS accéder à la vidéo ou au son, réponds uniquement : {"error": "no_access"}
+
+${a.text}
+
+${jsonFormat(ANALYSIS_SCHEMA)}`;
+}
+
+export function webSeoPrompt(ctx, analysis, kw, comp, trends) {
+  const s = seoPrompt(ctx, analysis, kw, comp, trends);
+  return `${s.system}
+
+${s.text}
+
+RECHERCHE DE TENDANCES : avant d'écrire, fais une recherche Google sur les hashtags et les recherches en hausse CE MOIS-CI pour ce style dans ces pays (YouTube, TikTok, Instagram). Mets ce que tu trouves dans « trends_found » et n'utilise que ce qui correspond vraiment à cette chanson.
+
+${jsonFormat(SEO_SCHEMA)}`;
+}
+
+// Une seule demande (analyse + SEO) : plus rapide, un peu moins précis sur les mots-clés
+export function webSinglePrompt(ctx, { link = '', kwData = null } = {}) {
+  const a = analysisPrompt(ctx);
+  const s = seoPrompt(ctx, null, kwData, null, null);
+  return `${a.system}
+
+${link ? `VIDÉO À ANALYSER : ${link}
+Ouvre cette vidéo YouTube avec ton outil YouTube, regarde-la et écoute-la EN ENTIER.` : 'Le fichier audio joint est la bande-son complète de la vidéo : écoute-le EN ENTIER.'}
+Si tu ne peux PAS accéder à la vidéo ou au son, réponds uniquement : {"error": "no_access"}
+
+Fais DEUX choses : A) l'analyse musicale et vidéo (clé « analysis ») ; B) le pack SEO YouTube basé sur cette analyse (clé « seo »).
+
+${s.system.replace('Réponds uniquement avec le JSON demandé.', '')}
+
+${a.text}
+
+${keywordBlock(kwData)}
+
+${rules(ctx)}
+
+RECHERCHE DE TENDANCES : fais une recherche Google sur les hashtags et recherches en hausse ce mois-ci pour ce style ; mets-les dans « seo.trends_found ».
+
+PARTIE B — ${seoTasks(ctx, null, { listened: true })}
+
+FORMAT DE RÉPONSE OBLIGATOIRE : UN SEUL bloc de code JSON valide, sans texte autour :
+\`\`\`json
+${JSON.stringify({ analysis: jsonExample(ANALYSIS_SCHEMA), seo: jsonExample(SEO_SCHEMA) }, null, 1)}
+\`\`\``;
+}
+
+/* ---------- 5. Mode manuel (copier-coller dans gemini.google.com) ---------- */
 export function manualPrompt(ctx) {
   const a = analysisPrompt(ctx);
   const s = seoPrompt(ctx, null, ctx.kwData, null, null);

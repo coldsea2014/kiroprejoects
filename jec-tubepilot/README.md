@@ -2,6 +2,25 @@
 
 Extension Chrome pour chaînes YouTube (pensée d'abord pour les chaînes **musique**). Vous importez votre vidéo dans YouTube Studio. **Gemini écoute et regarde le fichier lui-même**, même si la vidéo est privée. TubePilot vérifie ensuite les mots-clés sur les **vraies recherches YouTube** et analyse les concurrents. Il écrit le titre, la description avec **timeline / chapitres**, les tags et les hashtags, puis **les insère tout seul dans Studio**. Tout respecte le règlement YouTube / Google.
 
+## Nouveautés de la v4.2 — votre Gemini Pro, sans clé API
+
+- **Mode par défaut : 💎 Gemini Pro — mon abonnement.** TubePilot pilote lui-même **gemini.google.com** : aucune clé AI Studio, aucun copier-coller, aucun fichier à importer à la main.
+  1. Vous importez la vidéo dans YouTube Studio, ou vous cliquez « 🎧 Analyser ce clip avec Gemini » sur une page YouTube.
+  2. TubePilot ouvre Gemini dans une **petite fenêtre dans le coin de l'écran**. Il y colle la consigne pro avec :
+     - le **lien** de la vidéo, si elle est publique ou non répertoriée (vérifié automatiquement) ;
+     - sinon **l'audio** extrait de votre fichier sur votre ordinateur, **joint automatiquement**.
+  3. Gemini écoute la chanson et renvoie son analyse en JSON : style, rythme, refrain, meilleurs moments, timeline.
+  4. TubePilot cherche les **vraies recherches YouTube** dans le pays du style, puis envoie une **2e demande dans la même conversation**. Gemini écrit le SEO et cherche lui-même sur Google les hashtags en tendance.
+  5. Le JSON est récupéré, **YouTube Studio est rempli** (titre, description avec timeline 🔥, tags), puis **la fenêtre Gemini se ferme**.
+- Si Gemini a besoin de vous (compte à reconnecter, fichier refusé), sa fenêtre s'agrandit au premier plan avec un message. TubePilot continue tout seul ensuite.
+- Réglages (panneau › ⚙️ Moteur IA & clés) :
+  - **2 étapes** (meilleur SEO) ou **1 seule demande** (plus rapide) ;
+  - petite fenêtre ou onglet en arrière-plan ;
+  - fermeture automatique ;
+  - adresse d'un 2e compte Google (`/u/1/app`).
+- Le modèle (Pro ou Flash) se choisit **une fois dans Gemini** : il est retenu.
+- Le mode **API Gemini** (clé AI Studio) reste disponible pour ceux qui le préfèrent.
+
 ## Nouveautés de la v4.1
 
 - **Tous les rythmes du monde.** Gemini reçoit un guide d'écoute : Golfe / khaliji (samri, khabiti, adani, sheilat), Arabie saoudite, Yémen (sana'ani, adani, hadrami), Irak (choubi, maqam, rap irakien), Levant, Égypte (maqsum, saïdi, mahraganat), Maghreb, Turquie, Afrique, rap / trap / drill, RnB, jazz, fusions. Pour chaque chanson, il suit une méthode :
@@ -36,19 +55,21 @@ Extension Chrome pour chaînes YouTube (pensée d'abord pour les chaînes **musi
 
 ## Installation
 
-1. Décompressez `jec-tubepilot-4.1.0.zip` dans un dossier que vous gardez.
+1. Décompressez `jec-tubepilot-4.2.0.zip` dans un dossier que vous gardez.
 2. Ouvrez `chrome://extensions` → activez **Mode développeur** → **Charger l'extension non empaquetée** → choisissez le dossier `jec-tubepilot`.
 3. Épinglez l'icône (violet/rose). La page **Réglages** s'ouvre toute seule.
 4. Rechargez vos onglets YouTube et YouTube Studio (F5).
 
-## Les 2 clés (gratuites)
+## Moteur IA et clés
 
-**1. Clé Gemini** (obligatoire pour l'écoute automatique)
+**Par défaut, aucune clé n'est nécessaire.** Il suffit d'être connecté à **gemini.google.com** dans Chrome (votre abonnement Gemini Pro).
+
+**Mode API, optionnel : clé Gemini**
 - Ouvrez <https://aistudio.google.com/apikey> avec votre compte Google → *Create API key* → copiez la clé (`AIza…`).
 - Collez-la dans le panneau (🔑 Clés API) ou dans Réglages → **Tester la clé**. Les modèles de votre compte sont chargés, et le meilleur « Pro » et le meilleur « Flash » sont choisis tout seuls.
 - ℹ️ L'abonnement **Gemini Pro** (gemini.google.com) et l'**API** sont deux choses séparées chez Google. L'API a un quota gratuit. Si le modèle Pro atteint sa limite du jour, choisissez un modèle Flash dans Réglages. Votre abonnement reste utilisable avec le **mode manuel** (voir plus bas).
 
-**2. Clé YouTube Data API v3** (concurrents, tendances, statistiques)
+**Clé YouTube Data API v3** (optionnelle : concurrents, tendances YouTube, statistiques)
 - <https://console.cloud.google.com/apis/library/youtube.googleapis.com> → **Activer**.
 - <https://console.cloud.google.com/apis/credentials> → **Créer des identifiants** → **Clé API**.
 - Collez-la dans le panneau (🔑 Clés API) ou dans Réglages, section 2.

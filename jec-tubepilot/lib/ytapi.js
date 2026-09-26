@@ -150,3 +150,11 @@ export async function testKey(key) {
   const body = await res.json().catch(() => ({}));
   throw new YtError(body.error?.message || 'Clé refusée (' + res.status + ')');
 }
+
+// Vidéo accessible par lien (publique ou non répertoriée) ? oEmbed répond 401/404 pour une vidéo privée. Sans clé.
+export async function isPublic(videoId) {
+  try {
+    const res = await fetch('https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent('https://www.youtube.com/watch?v=' + videoId));
+    return res.ok;
+  } catch (e) { return false; }
+}

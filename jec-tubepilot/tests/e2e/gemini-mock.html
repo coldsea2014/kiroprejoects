@@ -1,0 +1,48 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Gemini (maquette de test)</title>
+<style>body{font-family:Arial;margin:0;padding:10px} .ql-editor{min-height:40px;border:1px solid #999;padding:6px} model-response,user-query{display:block;margin:6px 0;padding:6px;border:1px solid #ddd}</style></head>
+<body>
+<main>
+  <div id="chat"></div>
+  <div class="input-area">
+    <div id="files"></div>
+    <rich-textarea><div class="ql-editor" contenteditable="true" role="textbox"></div></rich-textarea>
+    <button aria-label="Open upload file menu" id="plus">+</button>
+    <button class="send-button" aria-label="Send message" disabled>Send</button>
+  </div>
+</main>
+<script>
+  // Comportement minimal de Gemini : fichier collé → aperçu, Envoyer → réponse en JSON (analyse ou SEO) après « réflexion »
+  const ANALYSIS = __ANALYSIS__, SEO = __SEO__;
+  const ed = document.querySelector('.ql-editor'), send = document.querySelector('.send-button'), chat = document.getElementById('chat');
+  window.__prompts = []; window.__files = [];
+  const sync = () => { send.disabled = !ed.innerText.trim(); };
+  ed.addEventListener('input', sync);
+  ed.addEventListener('paste', (e) => {
+    const f = e.clipboardData && e.clipboardData.files && e.clipboardData.files[0];
+    if (!f) return;
+    e.preventDefault();
+    const p = document.createElement('uploader-file-preview');
+    p.textContent = f.name;
+    document.getElementById('files').append(p);
+    window.__files.push(f.name + ' ' + f.size);
+  });
+  send.addEventListener('click', () => {
+    const prompt = ed.innerText;
+    window.__prompts.push(prompt);
+    fetch('/__log', { method: 'POST', body: JSON.stringify({ prompt: prompt.slice(0, 300), seo: prompt.includes('À PRODUIRE'), files: window.__files.slice() }) }).catch(() => {});
+    ed.innerHTML = ''; sync();
+    document.getElementById('files').innerHTML = '';
+    const uq = document.createElement('user-query'); uq.textContent = prompt.slice(0, 60); chat.append(uq);
+    const stop = document.createElement('button'); stop.setAttribute('aria-label', 'Stop response'); document.querySelector('.input-area').append(stop);
+    const mr = document.createElement('model-response'); const mc = document.createElement('message-content'); mr.append(mc); chat.append(mr);
+    const json = prompt.includes('À PRODUIRE') ? SEO : ANALYSIS;
+    setTimeout(() => { mc.innerHTML = '<model-thoughts>{"brouillon": true}</model-thoughts><p>Voici le JSON :</p>'; }, 300);
+    setTimeout(() => {
+      const pre = document.createElement('pre'); const code = document.createElement('code');
+      code.textContent = JSON.stringify(json, null, 1); pre.append(code); mc.append(pre);
+      stop.remove();
+    }, 1500);
+  });
+</script>
+</body></html>

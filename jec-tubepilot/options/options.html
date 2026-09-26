@@ -15,7 +15,30 @@
     </header>
 
     <section class="box">
-      <h2>1. Clé Gemini (obligatoire pour l'écoute automatique)</h2>
+      <h2>1. Moteur IA</h2>
+      <label class="chk"><input type="radio" name="aiEngine" value="web"> <b>💎 Gemini Pro — mon abonnement (gemini.google.com)</b> — recommandé, aucune clé</label>
+      <p class="small muted">TubePilot ouvre Gemini dans une petite fenêtre, envoie la consigne avec le <b>lien</b> de la vidéo (si elle est publique ou non répertoriée) ou son <b>audio</b> extrait automatiquement du fichier importé, récupère le JSON, remplit YouTube Studio, puis ferme la fenêtre. Restez connecté à gemini.google.com ; choisissez une fois le modèle (Pro ou Flash) dans Gemini, il est retenu.</p>
+      <div class="grid2">
+        <label>Adresse de Gemini (2e compte : https://gemini.google.com/u/1/app)<input id="geminiUrl" placeholder="https://gemini.google.com/app"></label>
+        <label>Demandes à Gemini
+          <select id="geminiSteps">
+            <option value="2">2 étapes : écoute, puis SEO avec les vraies recherches YouTube (meilleur)</option>
+            <option value="1">1 seule demande (plus rapide)</option>
+          </select>
+        </label>
+        <label>Fenêtre Gemini
+          <select id="geminiWindow">
+            <option value="popup">Petite fenêtre dans le coin de l'écran</option>
+            <option value="tab">Onglet en arrière-plan</option>
+          </select>
+        </label>
+      </div>
+      <label class="chk"><input type="checkbox" id="geminiClose"> Fermer Gemini dès que le JSON est récupéré</label>
+      <label class="chk"><input type="radio" name="aiEngine" value="api"> <b>🔑 API Gemini</b> (clé AI Studio) — pour ceux qui préfèrent l'API (voir ci-dessous)</label>
+    </section>
+
+    <section class="box">
+      <h2>1 bis. Clé Gemini (seulement pour le mode API)</h2>
       <p class="small muted">Gratuite : ouvrez <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> → « Create API key » → copiez la clé (commence par « AIza »).
         C'est grâce à l'API que Gemini <b>écoute et regarde le fichier lui-même</b>, même quand la vidéo est privée. Votre abonnement Gemini Pro reste utilisable en mode manuel (panneau › « Mon abonnement Gemini Pro »).</p>
       <div class="row">

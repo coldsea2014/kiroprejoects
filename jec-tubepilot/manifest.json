@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "JEC TubePilot — SEO YouTube par Gemini",
   "short_name": "TubePilot",
-  "version": "4.1.0",
-  "description": "Gemini écoute et regarde vos vidéos (même privées) : titres à forte accroche, description avec timeline, tags ≤ 500, mots-clés réels, concurrents, insertion auto dans Studio.",
+  "version": "4.2.0",
+  "description": "Votre Gemini Pro (gemini.google.com) écoute vos clips tout seul : titres à forte accroche, timeline 00:05 avec meilleurs moments, tags, hashtags tendance, mots-clés réels, insertion auto dans YouTube Studio.",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "icons/icon16.png",
@@ -36,32 +36,80 @@
   "host_permissions": [
     "https://studio.youtube.com/*",
     "https://www.youtube.com/*",
+    "https://gemini.google.com/*",
     "https://generativelanguage.googleapis.com/*",
     "https://www.googleapis.com/*",
     "https://suggestqueries.google.com/*"
   ],
   "content_scripts": [
     {
-      "matches": ["https://studio.youtube.com/*"],
-      "js": ["lib/format.js", "lib/policy.js", "lib/seo.js", "content/ui-kit.js", "content/studio.js"],
+      "matches": [
+        "https://studio.youtube.com/*"
+      ],
+      "js": [
+        "lib/format.js",
+        "lib/policy.js",
+        "lib/seo.js",
+        "content/ui-kit.js",
+        "content/studio.js"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://www.youtube.com/*"],
-      "js": ["lib/format.js", "lib/policy.js", "lib/seo.js", "content/ui-kit.js", "content/youtube.js"],
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "lib/format.js",
+        "lib/policy.js",
+        "lib/seo.js",
+        "content/ui-kit.js",
+        "content/youtube.js"
+      ],
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://www.youtube.com/*"],
-      "js": ["content/yt-main.js"],
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "content/yt-main.js"
+      ],
       "world": "MAIN",
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "lib/jsonparse.js",
+        "content/gemini-web.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "content/gemini-main.js"
+      ],
+      "world": "MAIN",
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["engine/engine.html", "content/shadow.css", "icons/icon32.png"],
-      "matches": ["https://studio.youtube.com/*", "https://www.youtube.com/*"]
+      "resources": [
+        "engine/engine.html",
+        "content/shadow.css",
+        "icons/icon32.png"
+      ],
+      "matches": [
+        "https://studio.youtube.com/*",
+        "https://www.youtube.com/*"
+      ]
     }
   ]
 }

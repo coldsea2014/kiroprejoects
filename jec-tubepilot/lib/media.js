@@ -144,3 +144,19 @@ export async function prepare(file, { mode = 'auto', onStep } = {}) {
   if (!geminiReadable(file)) throw new Error(`Format « ${mime || file.name} » non accepté par Gemini : utilisez MP4, MOV, WEBM, MP3 ou WAV.`);
   return { blob: file, mime: mime.startsWith('audio/') || mime.startsWith('video/') ? mime : 'video/mp4', kind: audioOnly ? 'audio' : 'video', info, bpm, displayName: file.name };
 }
+
+// Audio pour la conversation gemini.google.com : WAV 16 kHz mono (30 min au plus) ; MP3/M4A légers joints tels quels si besoin
+export async function prepareChatAudio(file) {
+  const info = await probe(file);
+  const decodable = file.size <= 450 * 1024 * 1024 && (info.duration ? info.duration <= 40 * 60 : file.size <= 150 * 1024 * 1024);
+  if (decodable) {
+    try {
+      const buf = await decodeAudio(file);
+      const samples = await toMono16k(buf, 30 * 60);
+      if (!info.duration) info.duration = buf.duration;
+      return { blob: wavBlob(samples), name: file.name.replace(/\.[^.]+$/, '') + '.wav', info, bpm: estimateBpm(samples) };
+    } catch (e) { /* format non lu par Chrome */ }
+  }
+  if (isAudio(file) && file.size <= 40 * 1024 * 1024) return { blob: file, name: file.name, info, bpm: null };
+  throw new Error('Impossible d\'extraire l\'audio de cette vidéo (trop longue, trop lourde ou format non lu). Publiez-la en public/non répertoriée pour l\'analyse par lien, ou choisissez le MP3.');
+}

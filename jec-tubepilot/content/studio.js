@@ -16,7 +16,7 @@
   let settings = {};
   async function loadSettings() {
     const s = (await chrome.storage.local.get('settings')).settings || {};
-    settings = { autopilot: true, autofill: true, studioCard: true, tagSuggest: true, ...s };
+    settings = { autopilot: true, autofill: true, studioCard: true, tagSuggest: true, aiEngine: 'web', ...s };
   }
 
   // Profil de la chaîne ouverte (lié par son ID UC…), sinon le profil actif
@@ -288,8 +288,8 @@
     await loadSettings();
     lastError = '';
     note = '';
-    if (!settings.geminiKey) {
-      lastError = 'Ajoutez votre clé Gemini (gratuite) dans les réglages de JEC TubePilot pour que Gemini écoute et analyse la vidéo.';
+    if (settings.aiEngine === 'api' && !settings.geminiKey) {
+      lastError = 'Mode API : ajoutez votre clé Gemini dans les réglages, ou choisissez « Gemini Pro (mon abonnement) ».';
       render();
       return { started: false, error: lastError };
     }
@@ -305,7 +305,8 @@
       currentDescription: text(e.description),
       currentTags: currentTags(),
       packKey,
-      aliases: pack?.key && pack.key !== packKey ? [pack.key] : [],
+      // régénération seulement : la fiche affichée est reprise ; une nouvelle écoute ne réutilise jamais une autre vidéo
+      aliases: mode !== 'full' && pack?.key && pack.key !== packKey ? [pack.key] : [],
       ...extra
     };
     job = { id: crypto.randomUUID(), key: packKey, auto, step: 'prepare', pct: null, detail: '', warn: '', initial: { title: ctx.currentTitle, description: ctx.currentDescription, tags: ctx.currentTags }, fileName: ctx.fileName };
@@ -404,11 +405,12 @@
     });
   }
 
-  const STEP_LABELS = { prepare: 'Préparation', upload: 'Envoi à Gemini', processing: 'Traitement Google', analyze: 'Écoute & analyse', keywords: 'Recherches YouTube', trends: 'Tendances', competition: 'Concurrents', seo: 'Rédaction SEO' };
+  const STEP_LABELS = { prepare: 'Préparation', upload: 'Envoi à Gemini', processing: 'Traitement Google', gemini: 'Gemini', analyze: 'Écoute & analyse', keywords: 'Recherches YouTube', trends: 'Tendances', competition: 'Concurrents', seo: 'Rédaction SEO' };
 
   function progressHtml() {
     if (!job) return '';
-    const order = Object.keys(STEP_LABELS);
+    // étapes propres au moteur choisi (API : envoi + traitement ; abonnement : fenêtre Gemini)
+    const order = Object.keys(STEP_LABELS).filter((k) => (settings.aiEngine === 'api' ? k !== 'gemini' : k !== 'upload' && k !== 'processing'));
     const idx = order.indexOf(job.step);
     const pct = job.pct != null ? Math.round(job.pct * 100) : null;
     return `<div class="tp-progress" data-part="progress">
@@ -452,7 +454,8 @@
     if (!card) return;
     const k = keys();
     const live = liveScore();
-    const hasKey = !!settings.geminiKey;
+    const hasKey = settings.aiEngine !== 'api' || !!settings.geminiKey;
+    const web = settings.aiEngine !== 'api';
     const f = k.file;
     const src = f ? `🎬 Fichier capté : <b>${esc(f.name)}</b> <span class="tp-muted">(${(f.size / 1048576).toFixed(1)} Mo)</span>`
       : k.vid ? `🎬 Vidéo <b>${esc(k.vid)}</b> <span class="tp-muted">— fichier non capté</span>` : '';
@@ -471,10 +474,13 @@
       </div>
       <div class="tp-body ${collapsed ? 'tp-hidden' : ''}">
         ${src ? `<div class="tp-small">${src}</div>` : ''}
-        ${!hasKey ? `<div class="tp-note">🔑 Ajoutez votre <b>clé Gemini gratuite</b> pour que Gemini écoute et regarde vos vidéos (même privées). <button class="tp-link" data-act="options">Ouvrir les réglages</button></div>` : ''}
+        ${!hasKey ? `<div class="tp-note">🔑 Mode API sans clé : ajoutez la clé ou passez sur « Gemini Pro (mon abonnement) ». <button class="tp-link" data-act="options">Ouvrir les réglages</button></div>` : ''}
+        ${web && !job && !pack ? '<div class="tp-muted tp-small">💎 Moteur : votre Gemini Pro (gemini.google.com) — restez connecté ; une petite fenêtre Gemini s\'ouvre puis se ferme toute seule.</div>' : ''}
         ${job ? progressHtml() : `<div class="tp-row">
-          ${f ? '<button class="tp-primary" data-act="run">🎧 Analyser la vidéo & générer</button>' : '<button class="tp-primary" data-act="pick">📁 Choisir le fichier de cette vidéo</button>'}
-          ${!f && k.vid ? '<button data-act="url" title="Seulement pour une vidéo PUBLIQUE">🔗 Via le lien public</button>' : ''}
+          ${f ? `<button class="tp-primary" data-act="run">🎧 Analyser avec ${web ? 'Gemini Pro' : 'Gemini'} & générer</button>`
+            : web && k.vid ? '<button class="tp-primary" data-act="auto" title="Lien si la vidéo est publique ou non répertoriée">🎧 Analyser avec Gemini Pro</button><button data-act="pick" title="Pour une vidéo privée">📁 Choisir le fichier</button>'
+              : '<button class="tp-primary" data-act="pick">📁 Choisir le fichier de cette vidéo</button>'}
+          ${!f && k.vid && !web ? '<button data-act="url" title="Seulement pour une vidéo PUBLIQUE">🔗 Via le lien public</button>' : ''}
           ${pack ? '<button data-act="regen" title="Nouveaux titres et description, sans réécouter">🔁 Régénérer le SEO</button>' : '<button data-act="express" title="Sans écoute : à partir du nom du fichier et de vos notes">⚡ Express</button>'}
           ${pack?.analysis && f ? '<button class="tp-ghost" data-act="reanalyze">↻ Réécouter</button>' : ''}
         </div>`}
@@ -517,6 +523,7 @@
       else if (act === 'reanalyze') start({ file: keys().file, reanalyze: true });
       else if (act === 'pick') fileInput.click();
       else if (act === 'url') start({ youtubeUrl: 'https://www.youtube.com/watch?v=' + keys().vid });
+      else if (act === 'auto') start({});
       else if (act === 'express' || act === 'regen') start({ mode: 'express' });
       else if (act === 'cancel') cancel();
       else if (act === 'more') { showAll = !showAll; render(); }
@@ -586,7 +593,7 @@
 
   /* ---------- Pilote automatique : l'import d'une vidéo lance l'analyse ---------- */
   async function autopilot() {
-    if (!settings.autopilot || !settings.geminiKey || job) return;
+    if (!settings.autopilot || job || (settings.aiEngine === 'api' && !settings.geminiKey)) return;
     if (!dialog()) return;
     const k = keys();
     if (!k.file || processed.has(k.key) || !visible(els().title)) return;
@@ -642,7 +649,7 @@
     if (m?.type === 'studio:run') {
       const k = keys();
       const o = m.options || {};
-      if (o.mode !== 'express' && !k.file && !o.youtubeUrl) { sendResponse({ ok: false, error: 'Aucun fichier capté dans cet onglet Studio. Importez la vidéo dans Studio, ou choisissez le fichier dans le panneau.' }); return false; }
+      if (o.mode !== 'express' && !k.file && !o.youtubeUrl && !(settings.aiEngine !== 'api' && k.vid)) { sendResponse({ ok: false, error: 'Aucun fichier capté dans cet onglet Studio. Importez la vidéo dans Studio, ou choisissez le fichier dans le panneau.' }); return false; }
       start({ file: o.mode === 'express' ? null : k.file, youtubeUrl: o.youtubeUrl || '', mode: o.mode, reanalyze: !!o.reanalyze, extra: o.extra || {}, runOptions: o.runOptions || {} })
         .then((r) => sendResponse(r.started ? { ok: true, data: r } : { ok: false, error: r.error || 'Déjà en cours.' }));
       return true;

@@ -46,7 +46,7 @@ globalThis.fetch = async (url, init = {}) => {
   return json({ error: { message: 'inconnu' } }, 404);
 };
 
-await setSettings({ geminiKey: 'AIzaTEST', modelMain: 'gemini-9-pro', modelFast: 'gemini-9-flash', competitorLookup: false, profiles: [{ id: 'default', name: 'Test', languages: 'ar, fr', country: 'MA', niche: 'Musique marocaine', signature: 'Instagram : https://instagram.com/test' }] });
+await setSettings({ aiEngine: 'api', geminiKey: 'AIzaTEST', modelMain: 'gemini-9-pro', modelFast: 'gemini-9-flash', competitorLookup: false, profiles: [{ id: 'default', name: 'Test', languages: 'ar, fr', country: 'MA', niche: 'Musique marocaine', signature: 'Instagram : https://instagram.com/test' }] });
 
 test('chaîne complète avec un lien YouTube public', async () => {
   const steps = [];
@@ -120,4 +120,62 @@ test('schémas : types en majuscules et champs requis existants', () => {
   };
   walk(ANALYSIS_SCHEMA);
   walk(SEO_SCHEMA);
+});
+
+test('mode abonnement (gemini.google.com) : lien public → écoute → SEO dans la même conversation → fenêtre fermée', async () => {
+  await setSettings({ aiEngine: 'web', geminiSteps: 2, geminiWindow: 'popup', geminiClose: true });
+  const G = store.__gemini;
+  const prompts = [];
+  G.setResponder(async (prompt) => {
+    prompts.push(prompt);
+    return 'Voici le résultat :\n```json\n' + JSON.stringify(prompt.includes('À PRODUIRE') ? SEO : ANALYSIS) + '\n```';
+  });
+  const saved = globalThis.fetch;
+  const oembed = [];
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('/oembed')) { oembed.push(url); return { ok: true, status: 200, json: async () => ({}) }; }
+    return saved(url, init);
+  };
+  calls.length = 0;
+  const pack = await run({ ctx: { videoId: 'publicvideo1', packKey: 'vid:publicvideo1' } });
+  globalThis.fetch = saved;
+  assert.equal(oembed.length, 1, 'visibilité vérifiée par oEmbed');
+  assert.equal(prompts.length, 2);
+  assert.match(prompts[0], /VIDÉO À ANALYSER : https:\/\/www\.youtube\.com\/watch\?v=publicvideo1/);
+  assert.match(prompts[0], /FORMAT DE RÉPONSE OBLIGATOIRE/);
+  assert.match(prompts[1], /RECHERCHES RÉELLES SUR YOUTUBE/);
+  assert.match(prompts[1], /RECHERCHE DE TENDANCES/);
+  assert.equal(calls.filter((c) => c.url.includes('generativelanguage')).length, 0, 'aucun appel à l\'API Gemini');
+  assert.equal(G.opened.length, 1, 'une seule fenêtre Gemini pour les 2 demandes');
+  assert.equal(G.opened[0].type, 'popup');
+  assert.equal(G.opened[0].closed, true, 'fenêtre fermée à la fin');
+  assert.equal(pack.models.engine, 'web');
+  assert.equal(pack.analysis.music.primary_genre, 'chaabi');
+  assert.match(pack.seo.description, /00:32 🔥 اللازمة/);
+});
+
+test('mode abonnement : vidéo privée sans fichier → SEO sans écoute (avertissement), aucune timeline inventée', async () => {
+  const G = store.__gemini;
+  const prompts = [];
+  G.setResponder(async (prompt) => { prompts.push(prompt); return '```json\n' + JSON.stringify(SEO) + '\n```'; });
+  const saved = globalThis.fetch;
+  globalThis.fetch = async (url, init) => (String(url).includes('/oembed') ? { ok: false, status: 401, json: async () => ({}) } : saved(url, init));
+  const pack = await run({ ctx: { videoId: 'privatevid01', packKey: 'vid:privatevid01', fileName: 'ya_lil.mp4' } });
+  globalThis.fetch = saved;
+  assert.equal(prompts.length, 1, 'seulement la demande SEO');
+  assert.match(pack.warnings.join(' '), /sans écoute/);
+  assert.equal(pack.seo.chapters.length, 0);
+});
+
+test('mode abonnement : « no_access » de Gemini → SEO sans écoute, sans planter', async () => {
+  const G = store.__gemini;
+  let n = 0;
+  G.setResponder(async (prompt) => (++n === 1 ? '{"error": "no_access"}' : '```json\n' + JSON.stringify(SEO) + '\n```'));
+  const saved = globalThis.fetch;
+  globalThis.fetch = async (url, init) => (String(url).includes('/oembed') ? { ok: true, status: 200, json: async () => ({}) } : saved(url, init));
+  const pack = await run({ ctx: { videoId: 'blockedvid01', packKey: 'vid:blockedvid01' } });
+  globalThis.fetch = saved;
+  assert.equal(n, 2);
+  assert.match(pack.warnings.join(' '), /no_access/);
+  await setSettings({ aiEngine: 'api' });
 });

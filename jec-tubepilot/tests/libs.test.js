@@ -4,6 +4,7 @@ import '../lib/format.js';
 import '../lib/policy.js';
 import '../lib/seo.js';
 import '../lib/postprocess.js';
+import '../lib/jsonparse.js';
 
 const F = globalThis.TPF, P = globalThis.TPPolicy, S = globalThis.TPSeo, Post = globalThis.TPPost;
 
@@ -164,4 +165,18 @@ test('postprocess : meilleurs moments 🔥 fusionnés dans une timeline valide',
 test('postprocess : pas de timeline inventée sans écoute', () => {
   const pack = Post.buildPack({ key: 'k', ctx: { duration: 200 }, analysis: null, seo: { titles: [{ text: 'T' }], chapters: [{ start: 0, label: 'a' }, { start: 20, label: 'b' }, { start: 40, label: 'c' }] } });
   assert.equal(pack.seo.chapters.length, 0);
+});
+
+test('jsonparse : réponse de Gemini avec texte, paroles multilignes, JSON coupé', () => {
+  const J = globalThis.TPJson;
+  const r1 = J.parse('Voici :\n```json\n{"titles":[{"text":"a"}],"tags":["x"],"lyrics":"ligne 1\nligne 2"}\n```\nBonne chance !', ['titles', 'tags']);
+  assert.equal(r1.obj.titles[0].text, 'a');
+  assert.equal(r1.obj.lyrics, 'ligne 1\nligne 2');
+  const r2 = J.parse('{"music":{"primary_genre":"khaliji"},"timeline":[{"start":0,"label":"مقدمة"},{"start":30,"lab', ['music', 'timeline']);
+  assert.equal(r2.cut, true);
+  assert.equal(r2.obj.music.primary_genre, 'khaliji');
+  const r3 = J.parse('{"music":{}} puis {"titles":[1],"tags":[2]}', ['titles', 'tags']);
+  assert.deepEqual(r3.obj.titles, [1]);
+  assert.equal(J.parse('pas de json', ['titles']).obj, null);
+  assert.equal(J.parse('{"error":"no_access"}', []).obj.error, 'no_access');
 });

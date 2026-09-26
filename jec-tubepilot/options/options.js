@@ -9,8 +9,8 @@ const esc = F.esc;
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
-const SIMPLE = ['geminiKey', 'ytKey', 'mediaMode', 'titleCount', 'modelMain', 'modelFast'];
-const CHECKS = ['deleteFiles', 'transcribeLyrics', 'competitorLookup', 'webTrends', 'autopilot', 'autofill', 'studioCard', 'tagSuggest', 'watchCard'];
+const SIMPLE = ['geminiKey', 'ytKey', 'mediaMode', 'titleCount', 'modelMain', 'modelFast', 'geminiUrl', 'geminiSteps', 'geminiWindow'];
+const CHECKS = ['geminiClose', 'deleteFiles', 'transcribeLyrics', 'competitorLookup', 'webTrends', 'autopilot', 'autofill', 'studioCard', 'tagSuggest', 'watchCard'];
 const PROFILE_FIELDS = [
   ['name', 'Nom du profil', 'ex. DOZA MANAL'],
   ['channelId', 'ID de la chaîne (UC…)', 'UCxxxxxxxxxxxxxxxxxxxxxx'],
@@ -120,7 +120,13 @@ function onProfileInput(e) {
   fillModels(settings.models || [], settings.modelMain, settings.modelFast);
   renderProfiles();
 
-  ['mediaMode', 'titleCount', 'modelMain', 'modelFast'].forEach((k) => $('#' + k).addEventListener('change', (e) => saveSoon({ [k]: k === 'titleCount' ? +e.target.value : e.target.value })));
+  ['mediaMode', 'titleCount', 'modelMain', 'modelFast', 'geminiSteps', 'geminiWindow'].forEach((k) => $('#' + k).addEventListener('change', (e) => saveSoon({ [k]: k === 'titleCount' || k === 'geminiSteps' ? +e.target.value : e.target.value })));
+  $$('input[name=aiEngine]').forEach((r) => { r.checked = r.value === (settings.aiEngine === 'api' ? 'api' : 'web'); r.addEventListener('change', () => saveSoon({ aiEngine: r.value })); });
+  $('#geminiUrl').addEventListener('change', (e) => {
+    const v = e.target.value.trim();
+    if (v && !/^https:\/\/gemini\.google\.com\//.test(v)) { e.target.value = settings.geminiUrl; return; }
+    saveSoon({ geminiUrl: v || 'https://gemini.google.com/app' });
+  });
   $('#geminiKey').addEventListener('change', (e) => saveSoon({ geminiKey: e.target.value.trim(), modelMain: settings.modelMain, modelFast: settings.modelFast }));
   $('#ytKey').addEventListener('change', (e) => saveSoon({ ytKey: e.target.value.trim() }));
   CHECKS.forEach((k) => $('#' + k).addEventListener('change', (e) => saveSoon({ [k]: e.target.checked })));

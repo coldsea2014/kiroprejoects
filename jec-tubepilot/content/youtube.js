@@ -65,6 +65,7 @@
           <div class="tp-chips">${tags.length ? tags.map((t) => `<button class="tp-chip" data-act="kw" data-kw="${esc(t)}" title="Analyser ce mot-clé">${esc(t)}</button>`).join('') : '<span class="tp-muted tp-small">Aucun tag public sur cette vidéo.</span>'}</div>
         </div>
         <div class="tp-row">
+          <button class="tp-primary" data-act="analyze" title="Gemini écoute ce clip public et prépare titres, timeline, tags et hashtags">🎧 Analyser ce clip avec Gemini</button>
           <button data-act="follow">➕ Suivre la chaîne</button>
           <button data-act="hooks">🧠 Formules d'accroche</button>
           <button data-act="kw" data-kw="${esc(tags[0] || d.title)}">🔑 Mots-clés</button>
@@ -86,6 +87,8 @@
         const tags = stats?.video?.tags?.length ? stats.video.tags : data.keywords;
         await UI.copy(tags.join(', '));
         UI.toast('Tags copiés ✓');
+      } else if (act === 'analyze') {
+        UI.openPanel({ tab: 'video', url: 'https://www.youtube.com/watch?v=' + data.videoId, autorun: true });
       } else if (act === 'kw') {
         UI.openPanel({ tab: 'keywords', keyword: b.dataset.kw });
       } else if (act === 'hooks') {

@@ -12,6 +12,7 @@ const shots = process.env.SHOTS || path.join(tmpdir(), 'tubepilot-shots');
 mkdirSync(shots, { recursive: true });
 const studioHtml = readFileSync(path.join(here, 'studio-mock.html'), 'utf8');
 const watchHtml = readFileSync(path.join(here, 'watch-mock.html'), 'utf8');
+const geminiTpl = readFileSync(path.join(here, 'gemini-mock.html'), 'utf8');
 
 const ANALYSIS = {
   content_type: 'music', summary: 'Chanson chaâbi marocaine festive, voix masculine, violon et darbouka.', language: 'Arabe — darija marocaine', language_code: 'ar', dialect: 'darija marocaine', language_evidence: '« قولها ليا », « بزاف »', target_countries: ['MA', 'DZ'], search_language: 'ar',
@@ -58,7 +59,11 @@ log('extension chargée', extId);
 
 let geminiCalls = 0, uploaded = 0;
 await ctx.route('https://studio.youtube.com/**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: studioHtml }));
-await ctx.route('https://www.youtube.com/**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: watchHtml }));
+await ctx.route('https://www.youtube.com/oembed**', (r) => r.fulfill({ status: /privatevideo/.test(r.request().url()) ? 401 : 200, contentType: 'application/json', body: '{}' }));
+await ctx.route('https://www.youtube.com/watch**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: watchHtml }));
+const gemLog = [];
+await ctx.route('https://gemini.google.com/__log', (r) => { gemLog.push(JSON.parse(r.request().postData() || '{}')); r.fulfill({ status: 204, body: '' }); });
+await ctx.route('https://gemini.google.com/app**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: geminiTpl.replace('__ANALYSIS__', JSON.stringify(ANALYSIS)).replace('__SEO__', JSON.stringify(SEO)) }));
 await ctx.route('https://suggestqueries.google.com/**', (r) => {
   const q = new URL(r.request().url()).searchParams.get('q');
   r.fulfill({ contentType: 'application/json; charset=utf-8', headers: cors, body: JSON.stringify([q, [q, q + ' 2026', q + ' نايضة']]) });
@@ -92,7 +97,7 @@ function watch(page, name) {
 const opt = await ctx.newPage();
 watch(opt, 'options');
 await opt.goto(`chrome-extension://${extId}/options/options.html`);
-await opt.evaluate(() => chrome.storage.local.set({ settings: { geminiKey: 'AIzaTEST', modelMain: 'gemini-9-pro', modelFast: 'gemini-9-flash', models: [{ id: 'gemini-9-pro', label: 'Gemini 9 Pro' }], competitorLookup: false, autopilot: true, autofill: true, profiles: [{ id: 'default', name: 'Chaîne test', channelId: 'UCabcdefghijklmnopqrstuv', languages: 'ar, fr', country: 'MA', niche: 'Musique marocaine', genre: 'chaabi', aiGenerated: true, signature: 'Instagram : https://instagram.com/test' }], activeProfile: 'default' } }));
+await opt.evaluate(() => chrome.storage.local.set({ settings: { aiEngine: 'api', geminiKey: 'AIzaTEST', modelMain: 'gemini-9-pro', modelFast: 'gemini-9-flash', models: [{ id: 'gemini-9-pro', label: 'Gemini 9 Pro' }], competitorLookup: false, autopilot: true, autofill: true, profiles: [{ id: 'default', name: 'Chaîne test', channelId: 'UCabcdefghijklmnopqrstuv', languages: 'ar, fr', country: 'MA', niche: 'Musique marocaine', genre: 'chaabi', aiGenerated: true, signature: 'Instagram : https://instagram.com/test' }], activeProfile: 'default' } }));
 await opt.reload();
 await opt.waitForSelector('.profile');
 await opt.screenshot({ path: path.join(shots, '1-options.png'), fullPage: true });
@@ -151,6 +156,45 @@ await panel.click('#kwGo');
 await panel.waitForSelector('#kwResults table', { timeout: 10000 });
 log('mots-clés trouvés :', await panel.locator('#kwResults tr').count() - 1);
 await panel.screenshot({ path: path.join(shots, '4-keywords.png'), fullPage: true });
+
+// 3b. Mode abonnement (gemini.google.com piloté) : import dans Studio → audio joint dans Gemini → 2 demandes → Studio rempli
+await opt.evaluate(async () => { const { settings } = await chrome.storage.local.get('settings'); await chrome.storage.local.set({ settings: { ...settings, aiEngine: 'web', geminiSteps: 2, geminiWindow: 'popup', geminiClose: true } }); });
+const geminiPages = [];
+// banc de test : la 1re navigation d'une fenêtre ouverte par l'extension peut échapper à la maquette → rechargée une fois
+ctx.on('page', async (p) => {
+  geminiPages.push(p);
+  watch(p, 'gemini');
+  await p.waitForLoadState().catch(() => {});
+  if (p.url().startsWith('chrome-error://')) await p.goto('https://gemini.google.com/app').catch(() => {});
+});
+const studio3 = await ctx.newPage();
+watch(studio3, 'studio3');
+await studio3.goto('https://studio.youtube.com/channel/UCabcdefghijklmnopqrstuv/videos/upload');
+const callsBefore = geminiCalls;
+await studio3.setInputFiles('#picker', { name: 'khaliji-web.wav', mimeType: 'audio/wav', buffer: wav() });
+try {
+  await studio3.waitForFunction(() => document.querySelector('#title-textarea #textbox').textContent.includes('شعبي'), null, { timeout: 60000 });
+} catch (e) {
+  console.error('DIAG carte :', await studio3.evaluate(() => document.querySelector('#tp-studio-card')?.shadowRoot?.textContent?.replace(/\s+/g, ' ').slice(0, 800)));
+  for (const p of ctx.pages()) console.error('DIAG page :', p.url());
+  const g = ctx.pages().find((p) => p.url().startsWith('https://gemini.google.com'));
+  if (g) console.error('DIAG gemini :', await g.evaluate(() => ({ prompts: window.__prompts?.length, files: window.__files, bar: document.getElementById('tp-gw')?.innerText, html: document.getElementById('chat')?.innerHTML.slice(0, 300) })));
+  console.error('ERREURS jusqu\'ici :', errors.join('\n'));
+  throw e;
+}
+const gp = geminiPages.find((p) => p.url().startsWith('https://gemini.google.com'));
+const web = await studio3.evaluate(() => ({ title: document.querySelector('#title-textarea #textbox').textContent, description: document.querySelector('#description-textarea #textbox').innerText }));
+log('mode abonnement — titre inséré :', web.title);
+if (!/00:12 🔥 اللازمة/.test(web.description)) errors.push('mode abonnement : timeline absente');
+if (geminiCalls !== callsBefore) errors.push('mode abonnement : l\'API Gemini a été appelée');
+await studio3.waitForTimeout(1500);
+const stillOpen = ctx.pages().filter((p) => p.url().startsWith('https://gemini.google.com') && !p.isClosed()).length;
+log('fenêtre Gemini refermée :', stillOpen === 0 ? 'oui' : 'NON');
+if (stillOpen) errors.push('fenêtre Gemini pas refermée');
+log('Gemini a reçu :', gemLog.map((x) => (x.seo ? 'demande SEO' : 'demande d\'écoute') + (x.files.length ? ` + ${x.files.join(', ')}` : '')).join(' → '));
+if (gemLog.length !== 2 || gemLog[0].seo || !gemLog[1].seo) errors.push('Gemini : 2 demandes attendues (écoute puis SEO)');
+if (!gemLog[0]?.files?.some((f) => /khaliji-web\.wav/.test(f))) errors.push('Gemini : audio non joint');
+await studio3.screenshot({ path: path.join(shots, '6-studio-web.png'), fullPage: true });
 
 // 4. Page vidéo YouTube
 const yt = await ctx.newPage();

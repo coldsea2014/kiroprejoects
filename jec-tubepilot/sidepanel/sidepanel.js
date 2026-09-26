@@ -81,16 +81,25 @@ async function loadSettings() {
 async function renderFooter() {
   const q = await getQuota();
   const el = $('#status');
-  const html = `<span>🤖 ${esc(settings.modelMain || 'modèle auto')}</span><span>📊 YouTube API : ${settings.ytKey ? `${q.toLocaleString('fr')} / 10 000 unités aujourd'hui` : 'pas de clé'}</span>`;
+  const html = `<span>${settings.aiEngine === 'api' ? `🤖 API ${esc(settings.modelMain || 'modèle auto')}` : '💎 Gemini Pro (abonnement)'}</span><span>📊 YouTube API : ${settings.ytKey ? `${q.toLocaleString('fr')} / 10 000 unités aujourd'hui` : 'pas de clé'}</span>`;
   if (el.dataset.base) el.dataset.base = html; else el.innerHTML = html;
 }
 
 /* =============== Clés API (aussi dans Réglages) =============== */
 function renderKeys() {
   const box = $('#keysBox');
+  const web = settings.aiEngine !== 'api';
   const g = !!settings.geminiKey, y = !!settings.ytKey;
-  $('#keysState').innerHTML = `Gemini ${g ? '<span class="ok">✓</span>' : '<b style="color:var(--bad)">✗</b>'} · YouTube ${y ? '<span class="ok">✓</span>' : '<b style="color:var(--bad)">✗</b>'}${settings.modelMain ? ` · <span class="muted">${esc(settings.modelMain)}</span>` : ''}`;
-  if (!g || !y) box.open = true;
+  const ok = (v) => (v ? '<span class="ok">✓</span>' : '<b style="color:var(--bad)">✗</b>');
+  $('#keysState').innerHTML = `${web ? '💎 Gemini Pro (abonnement)' : `🔑 API Gemini ${ok(g)}${settings.modelMain ? ` <span class="muted">${esc(settings.modelMain)}</span>` : ''}`} · YouTube ${ok(y)}`;
+  if (!web && !g) box.open = true;
+  $$('input[name=engine]').forEach((r) => { r.checked = r.value === (web ? 'web' : 'api'); });
+  show($('#webOpts'), web);
+  show($('#apiOpts'), !web);
+  if (document.activeElement !== $('#gUrl')) $('#gUrl').value = settings.geminiUrl || '';
+  $('#gSteps').value = String(settings.geminiSteps || 2);
+  $('#gWin').value = settings.geminiWindow || 'popup';
+  $('#gClose').checked = settings.geminiClose !== false;
   if (document.activeElement !== $('#gKey')) $('#gKey').value = settings.geminiKey || '';
   if (document.activeElement !== $('#yKey')) $('#yKey').value = settings.ytKey || '';
   const models = [...(settings.models || [])];
@@ -200,7 +209,8 @@ function showProgress(p) {
   const el = $('#progress');
   if (!p) { show(el, false); return; }
   show(el, true);
-  const order = STEPS.filter((s) => s.id !== 'done');
+  const api = settings.aiEngine === 'api';
+  const order = STEPS.filter((s) => s.id !== 'done' && (api ? s.id !== 'gemini' : s.id !== 'upload' && s.id !== 'processing'));
   const idx = order.findIndex((s) => s.id === p.step);
   const pct = p.pct != null ? Math.round(p.pct * 100) : null;
   el.innerHTML = `<div class="row"><b>${esc(order[idx]?.label || p.step)}</b>${pct != null ? `<span class="muted">${pct} %</span>` : ''}<span class="muted small clamp">${esc(p.detail || '')}</span><span class="sp"></span><button class="small ghost" id="cancelBtn">✕ Annuler</button></div>
@@ -220,8 +230,8 @@ function cancelRun() {
 
 async function runNow() {
   showError('');
-  if (!settings.geminiKey && $('input[name=src]:checked').value !== 'express') {
-    showError('Ajoutez votre clé Gemini dans les réglages (⚙️), ou utilisez « Mon abonnement Gemini Pro » plus bas.');
+  if (settings.aiEngine === 'api' && !settings.geminiKey) {
+    showError('Mode API sans clé : ajoutez la clé Gemini (⚙️ Moteur IA & clés) ou choisissez « 💎 Gemini Pro — mon abonnement ».');
     return;
   }
   const src = $('input[name=src]:checked').value;
@@ -630,7 +640,7 @@ async function kwAnalyze(kw) {
 }
 
 async function runHooks(titles, topic, out) {
-  if (!settings.geminiKey) { out.innerHTML = '<div class="alert small">Ajoutez votre clé Gemini dans les réglages.</div>'; return; }
+  if (settings.aiEngine === 'api' && !settings.geminiKey) { out.innerHTML = '<div class="alert small">Mode API sans clé : ajoutez la clé Gemini ou choisissez « Gemini Pro — mon abonnement ».</div>'; return; }
   out.innerHTML = `<div class="small muted">Gemini analyse ${titles.length} titres…</div>${bar(50).replace('class="bar"', 'class="bar indet"')}`;
   try {
     const r = await analyzeHooks(titles, { topic, profileId: profile().id });
@@ -759,6 +769,13 @@ async function handleIntent(intent) {
   if (!intent || Date.now() - (intent.ts || 0) > 15000) return;
   await chrome.storage.session.remove('panelIntent');
   if (intent.tab) showTab(intent.tab);
+  if (intent.tab === 'video' && intent.url) {
+    $('input[name=src][value=url]').checked = true;
+    srcTouched = true;
+    syncSrc();
+    $('#urlIn').value = intent.url;
+    if (intent.autorun && !job && !studioJob) runNow();
+  }
   if (intent.tab === 'keywords' && intent.keyword) kwSearch(intent.keyword);
   if (intent.tab === 'competitors' && intent.channelId) {
     const list = await getCompetitors();
@@ -808,6 +825,15 @@ function bind() {
   $('#compRefresh').addEventListener('click', () => refreshCompetitors().catch((e) => { $('#compVideos').innerHTML = `<div class="alert small">⚠️ ${esc(e.message)}</div>`; }));
   $('#trGo').addEventListener('click', loadTrends);
   $('#gSave').addEventListener('click', saveGeminiKey);
+  $$('input[name=engine]').forEach((r) => r.addEventListener('change', async () => { settings = await setSettings({ aiEngine: r.value }); renderKeys(); renderFooter(); }));
+  $('#gUrl').addEventListener('change', async (e) => {
+    const v = e.target.value.trim();
+    if (v && !/^https:\/\/gemini\.google\.com\//.test(v)) { flash('Adresse invalide : elle doit commencer par https://gemini.google.com/'); return; }
+    settings = await setSettings({ geminiUrl: v || 'https://gemini.google.com/app' });
+  });
+  $('#gSteps').addEventListener('change', async (e) => { settings = await setSettings({ geminiSteps: +e.target.value }); });
+  $('#gWin').addEventListener('change', async (e) => { settings = await setSettings({ geminiWindow: e.target.value }); });
+  $('#gClose').addEventListener('change', async (e) => { settings = await setSettings({ geminiClose: e.target.checked }); });
   $('#ySave').addEventListener('click', saveYtKey);
   $('#mMain').addEventListener('change', async (e) => { settings = await setSettings({ modelMain: e.target.value }); renderFooter(); });
   $('#mFast').addEventListener('change', async (e) => { settings = await setSettings({ modelFast: e.target.value }); });

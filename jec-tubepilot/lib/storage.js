@@ -21,6 +21,11 @@ export const DEFAULT_PROFILE = {
 };
 
 export const DEFAULTS = {
+  aiEngine: 'web',          // web = gemini.google.com (votre abonnement Gemini Pro) ; api = clé AI Studio
+  geminiUrl: 'https://gemini.google.com/app', // 2e compte Google : https://gemini.google.com/u/1/app
+  geminiSteps: 2,           // 2 = écoute puis SEO avec les vraies recherches YouTube ; 1 = une seule demande (plus rapide)
+  geminiWindow: 'popup',    // popup = petite fenêtre dans le coin ; tab = onglet en arrière-plan
+  geminiClose: true,        // fermer Gemini dès que le JSON est récupéré
   geminiKey: '',
   ytKey: '',
   modelMain: '',

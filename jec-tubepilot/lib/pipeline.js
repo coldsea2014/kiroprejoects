@@ -2,6 +2,7 @@
 import { getSettings, setSettings, pickProfile, profileLanguages, savePack, getPack } from './storage.js';
 import * as G from './gemini.js';
 import { research, competition } from './keywords.js';
+import { youtubeTrends, webTrends } from './trends.js';
 import { analysisPrompt, seoPrompt, hooksPrompt, ANALYSIS_SCHEMA, SEO_SCHEMA, HOOKS_SCHEMA } from './prompts.js';
 import './format.js';
 import './policy.js';
@@ -16,6 +17,7 @@ export const STEPS = [
   { id: 'processing', label: 'Traitement par Google' },
   { id: 'analyze', label: 'Gemini écoute et regarde' },
   { id: 'keywords', label: 'Recherches YouTube réelles' },
+  { id: 'trends', label: 'Tendances du moment' },
   { id: 'competition', label: 'Analyse des concurrents' },
   { id: 'seo', label: 'Rédaction SEO' },
   { id: 'done', label: 'Terminé' }
@@ -45,35 +47,78 @@ export function packKeyFor({ videoId, file, fileName, fileSize, youtubeUrl }) {
 }
 
 /* ---------- Mots-clés à partir de l'écoute ---------- */
-async function gatherKeywords(ctx, analysis, profile, { deep = true, onProgress } = {}) {
+// Pays et langue de recherche : ceux du STYLE entendu (khaliji → SA, rap irakien → IQ…), sinon ceux du profil
+export function searchLocale(analysis, profile) {
   const langs = profileLanguages(profile);
-  const primary = { hl: (analysis?.language_code || langs[0] || 'fr').slice(0, 2), gl: String(profile.country || '').toUpperCase() };
+  const countries = (analysis?.target_countries || []).map((c) => String(c || '').trim().toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c));
+  const gl = countries[0] || String(profile?.country || '').toUpperCase();
+  const hl = String(analysis?.search_language || analysis?.language_code || langs[0] || 'fr').slice(0, 2).toLowerCase();
+  return { hl, gl, countries: countries.length ? countries : gl ? [gl] : [] };
+}
+
+async function gatherKeywords(ctx, analysis, profile, { deep = true, onProgress } = {}) {
+  const loc = searchLocale(analysis, profile);
+  const primary = { hl: loc.hl, gl: loc.gl };
+  const m = analysis?.music || {};
   const seeds = F.uniq([
     ctx.keyword,
-    analysis?.music?.song_title_guess,
+    m.song_title_guess,
     ctx.cleanTitle,
+    m.hook_line && m.hook_line !== m.song_title_guess ? m.hook_line : '',
     ...(analysis?.search_queries || []).slice(0, 6),
-    analysis?.music?.primary_genre && profile.country ? `${analysis.music.primary_genre}` : '',
-    profile.genre
-  ].map((s) => String(s || '').trim()).filter((s) => s && s.length <= 60)).slice(0, 8);
+    ...(m.genre_search_terms || []).slice(0, 3),
+    !analysis ? profile.genre : ''
+  ].map((s) => String(s || '').trim()).filter((s) => s && s.length <= 60)).slice(0, 10);
+  // la graine principale est aussi cherchée dans le 2e pays du public (ex. Arabie saoudite puis Koweït)
+  const jobs = seeds.map((seed, i) => ({ seed, loc: primary, deep: deep && i < 2 }));
+  if (seeds[0] && loc.countries[1]) jobs.push({ seed: seeds[0], loc: { hl: loc.hl, gl: loc.countries[1] }, deep: false });
   const merged = new Map();
   let done = 0;
-  await F.pool(seeds, 3, async (seed, i) => {
+  await F.pool(jobs, 3, async (job) => {
     try {
-      const r = await research(seed, { ...primary, deep: deep && i === 0 });
+      const r = await research(job.seed, { ...job.loc, deep: job.deep });
       r.items.forEach((it) => {
         const k = F.norm(it.kw);
         const cur = merged.get(k);
-        if (!cur || cur.popularity < it.popularity) merged.set(k, { ...it, source: seed });
+        if (!cur || cur.popularity < it.popularity) merged.set(k, { ...it, source: job.seed, gl: job.loc.gl });
       });
     } catch (e) { /* suggestions indisponibles : Gemini travaillera sans */ }
-    onProgress?.(++done / seeds.length);
+    onProgress?.(++done / jobs.length);
   });
   const items = [...merged.values()].sort((a, b) => b.popularity - a.popularity);
-  // meilleur mot-clé : demandé par l'utilisateur, sinon le plus populaire qui reste pertinent pour la vidéo
+  // candidats : les recherches les plus demandées qui restent pertinentes pour CETTE chanson
   const relevant = (kw) => seeds.some((s) => S.similarity(kw, s) >= 0.34 || F.norm(kw).includes(F.norm(s)) || F.norm(s).includes(F.norm(kw)));
-  const best = ctx.keyword || items.find((x) => relevant(x.kw))?.kw || items[0]?.kw || seeds[0] || '';
-  return { seed: seeds[0] || '', sources: seeds, items: items.slice(0, 80), best, locale: primary };
+  const candidates = [];
+  if (ctx.keyword) candidates.push(ctx.keyword);
+  for (const it of items) {
+    if (candidates.length >= 3) break;
+    if (relevant(it.kw) && !candidates.some((c) => S.similarity(c, it.kw) >= 0.6)) candidates.push(it.kw);
+  }
+  if (!candidates.length && (items[0]?.kw || seeds[0])) candidates.push(items[0]?.kw || seeds[0]);
+  return { seed: seeds[0] || '', sources: seeds, items: items.slice(0, 90), best: candidates[0] || '', candidates, locale: { ...primary, countries: loc.countries } };
+}
+
+// Tendances YouTube (pays du style) + web, en parallèle ; une erreur n'arrête jamais la génération
+async function gatherTrends({ settings, analysis, profile, kw, useWeb, signal, warn }) {
+  const out = { youtube: null, web: null };
+  const m = analysis?.music || {};
+  const jobs = [];
+  if (settings.ytKey && kw.locale.gl) {
+    jobs.push(youtubeTrends(kw.locale.gl).then((r) => { out.youtube = r; }).catch((e) => warn('Tendances YouTube : ' + e.message)));
+  }
+  if (useWeb && (m.primary_genre || profile.genre)) {
+    jobs.push(webTrends({
+      key: settings.geminiKey,
+      model: settings.modelFast || settings.modelMain,
+      genre: [m.primary_genre || profile.genre, m.fusion].filter(Boolean).join(' / '),
+      countries: kw.locale.countries,
+      language: kw.locale.hl,
+      terms: (m.genre_search_terms || []).slice(0, 4),
+      signal
+    }).then((r) => { out.web = r; }).catch((e) => warn('Tendances web : ' + e.message)));
+  }
+  await Promise.all(jobs);
+  return out.youtube || out.web ? out : null;
 }
 
 /* ---------- Chaîne complète ---------- */
@@ -144,18 +189,35 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
   emit('keywords');
   const kw = await gatherKeywords(ctx, analysis, profile, { deep: options.deepKeywords !== false, onProgress: (p) => emit('keywords', { pct: p }) });
 
+  emit('trends', { detail: kw.locale.gl ? `pays : ${kw.locale.countries.join(', ')}` : '' });
+  const warns = [];
+  const trends = await gatherTrends({
+    settings, analysis, profile, kw, signal,
+    useWeb: options.webTrends ?? settings.webTrends,
+    warn: (w) => { warns.push(w); emit('trends', { warn: w }); }
+  });
+
+  // concurrence : les 2 meilleurs candidats sont comparés, on garde celui qui a le meilleur score
   let comp = null;
-  const wantComp = (options.competitors ?? settings.competitorLookup) && settings.ytKey && kw.best;
+  const wantComp = (options.competitors ?? settings.competitorLookup) && settings.ytKey && kw.candidates.length;
   if (wantComp) {
-    emit('competition', { detail: `« ${kw.best} »` });
     const music = /music/.test(analysis?.content_type || '') || isMusicProfile(profile);
-    try {
-      comp = await competition(kw.best, { regionCode: String(profile.country || '').toUpperCase() || undefined, relevanceLanguage: kw.locale.hl, videoCategoryId: music ? '10' : undefined });
-    } catch (e) { emit('competition', { warn: e.message }); }
+    const results = [];
+    for (const cand of kw.candidates.slice(0, 2)) {
+      emit('competition', { detail: `« ${cand} »` });
+      try {
+        results.push(await competition(cand, { regionCode: kw.locale.gl || undefined, relevanceLanguage: kw.locale.hl, videoCategoryId: music ? '10' : undefined }));
+      } catch (e) { emit('competition', { warn: e.message }); break; }
+    }
+    if (results.length) {
+      comp = results.reduce((a, b) => (b.overall > a.overall ? b : a));
+      kw.compared = results.map((c) => ({ kw: c.kw, overall: c.overall, demand: c.demand, competition: c.competition }));
+      if (!ctx.keyword) kw.best = comp.kw;
+    }
   }
 
   emit('seo', { detail: seoModel });
-  const { system, text } = seoPrompt({ ...ctx, keyword: ctx.keyword || '' }, analysis, kw, comp);
+  const { system, text } = seoPrompt({ ...ctx, keyword: ctx.keyword || '' }, analysis, kw, comp, trends);
   const r = await G.generate({ key, model: seoModel, parts: [{ text }], system, schema: SEO_SCHEMA, temperature: 0.85, signal, timeoutMs: 300000, onRetry: (e) => emit('seo', { detail: e.message }) });
   if (!r.json || !Array.isArray(r.json.titles)) throw new G.GeminiError('Gemini n\'a pas renvoyé de titres. Réessayez.', { reason: 'json' });
   usage.seo = r.usage;
@@ -163,7 +225,7 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
   const pack = globalThis.TPPost.buildPack({
     key: packKey, aliases,
     source: { fileName: raw.fileName || file?.name || '', videoId: raw.videoId || '', youtubeUrl, fileSize: file?.size || raw.fileSize || 0 },
-    ctx, analysis, seo: r.json, kw, comp, media,
+    ctx, analysis, seo: r.json, kw, comp, media, trends, warnings: warns,
     models: { analysis: analysis ? (prev?.models?.analysis || mainModel) : '', seo: seoModel },
     usage
   });

@@ -28,7 +28,20 @@
     <!-- ================= VIDÉO ================= -->
     <section id="tab-video" class="tab on">
       <div id="ctxBox" class="note small"></div>
-      <div id="keyWarn" class="alert small hidden">🔑 Ajoutez votre <b>clé Gemini gratuite</b> (aistudio.google.com/apikey) pour que Gemini écoute et regarde vos vidéos, même privées. <button class="link" data-open-options>Ouvrir les réglages</button></div>
+      <details class="box" id="keysBox">
+        <summary>🔑 Clés API — <span id="keysState"></span></summary>
+        <div class="small">Clé Gemini — gratuite sur <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></div>
+        <div class="row"><input id="gKey" type="password" placeholder="AIza…" autocomplete="off" aria-label="Clé Gemini"><button id="gSave" class="small">Enregistrer et tester</button></div>
+        <div id="gState" class="small"></div>
+        <div class="small">Clé YouTube Data API v3 — gratuite : <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">activer l'API</a>, puis <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">créer une clé</a></div>
+        <div class="row"><input id="yKey" type="password" placeholder="AIza…" autocomplete="off" aria-label="Clé YouTube Data API"><button id="ySave" class="small">Enregistrer et tester</button></div>
+        <div id="yState" class="small"></div>
+        <div class="grid2">
+          <label>Modèle principal (écoute + SEO)<select id="mMain"></select></label>
+          <label>Modèle rapide (tendances, accroches)<select id="mFast"></select></label>
+        </div>
+        <div class="tiny muted">Pro = meilleure écoute ; Flash = plus rapide et plus de vidéos par jour en quota gratuit. Tout est aussi dans ⚙️ Réglages.</div>
+      </details>
 
       <div class="box">
         <div class="seg" id="srcSeg">
@@ -54,7 +67,8 @@
           <label>Notes (sujet, public, sortie…)<textarea id="notesIn" rows="2" placeholder="ex. chanson d'amour pour les mariages, voix IA Suno, sortie vendredi"></textarea></label>
           <label>Paroles (si vous les avez)<textarea id="lyricsIn" rows="3"></textarea></label>
           <label class="chk"><input type="checkbox" id="lyricsChk"> Transcrire les paroles entendues</label>
-          <label class="chk"><input type="checkbox" id="compChk"> Analyser les concurrents du mot-clé (clé YouTube, ~102 unités)</label>
+          <label class="chk"><input type="checkbox" id="compChk"> Comparer les 2 meilleurs mots-clés sur YouTube (clé YouTube, ~204 unités)</label>
+          <label class="chk"><input type="checkbox" id="webChk"> 🌐 Tendances du moment (YouTube Tendances + recherche Google par Gemini)</label>
           <label class="chk"><input type="checkbox" id="reChk"> Réécouter même si la vidéo a déjà été analysée</label>
         </details>
         <button id="runBtn" class="primary big">🚀 Analyser la vidéo & générer le SEO</button>

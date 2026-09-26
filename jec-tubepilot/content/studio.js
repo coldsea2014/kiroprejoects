@@ -404,7 +404,7 @@
     });
   }
 
-  const STEP_LABELS = { prepare: 'Préparation', upload: 'Envoi à Gemini', processing: 'Traitement Google', analyze: 'Écoute & analyse', keywords: 'Recherches YouTube', competition: 'Concurrents', seo: 'Rédaction SEO' };
+  const STEP_LABELS = { prepare: 'Préparation', upload: 'Envoi à Gemini', processing: 'Traitement Google', analyze: 'Écoute & analyse', keywords: 'Recherches YouTube', trends: 'Tendances', competition: 'Concurrents', seo: 'Rédaction SEO' };
 
   function progressHtml() {
     if (!job) return '';
@@ -429,7 +429,8 @@
     if (!a) return '';
     const m = a.music || {};
     const bits = [
-      m.primary_genre && `🎵 <b>${esc(m.primary_genre)}</b>${m.regional_style ? ` (${esc(m.regional_style)})` : ''}`,
+      m.primary_genre && `🎵 <b>${esc(m.primary_genre)}</b>${m.fusion ? ` × ${esc(m.fusion)}` : ''}${m.regional_style ? ` (${esc(m.regional_style)})` : ''}`,
+      m.rhythm_pattern && `🥁 ${esc(m.rhythm_pattern)}`,
       (m.bpm || pack?.ctx?.localBpm) && `⏱ ${Math.round(m.bpm || pack.ctx.localBpm)} BPM`,
       m.time_signature && esc(m.time_signature),
       (m.key || m.scale_or_maqam) && `🎼 ${esc([m.key, m.scale_or_maqam].filter(Boolean).join(' · '))}`,
@@ -481,7 +482,8 @@
         ${note ? `<div class="tp-note">${esc(note)}</div>` : ''}
         ${s ? `
           ${analysisLine(pack.analysis)}
-          ${pack.analysis?.music?.hook_line ? `<div class="tp-small">🎤 Refrain : « <b>${esc(pack.analysis.music.hook_line)}</b> »</div>` : ''}
+          ${pack.analysis?.music?.hook_line ? `<div class="tp-small">🎤 Refrain : « <b>${esc(pack.analysis.music.hook_line)}</b> »${pack.analysis.music.hook_start != null ? ` à ${F.ts(pack.analysis.music.hook_start)}` : ''}</div>` : ''}
+          ${pack.analysis?.highlights?.length ? `<div class="tp-small">🔥 Meilleurs moments : ${pack.analysis.highlights.map((h) => `<b>${F.ts(h.start)}</b> ${esc(h.label)}`).join(' · ')}</div>` : ''}
           ${s.mainKeyword ? `<div class="tp-small">🔑 Mot-clé principal : « <b>${esc(s.mainKeyword)}</b> »${pack.competition ? ` <span class="tp-muted">· demande ${pack.competition.demand}/100 · concurrence ${pack.competition.competition}/100</span>` : ''}</div>` : ''}
           <div class="tp-titles">${titles.map((t, i) => `<div class="tp-title ${F.norm(t.text) === F.norm(curTitle) ? 'tp-applied' : ''}" data-act="title" data-i="${s.titles.indexOf(t)}" title="${esc(t.angle || 'Cliquer pour appliquer')}">
             ${UI.badge(t.score, 'Score SEO du titre')}<span class="tp-t">${esc(t.text)}</span><span class="tp-hook">${esc(t.hook || '')}</span></div>`).join('')}
@@ -494,7 +496,7 @@
             <button data-act="copy" data-what="hashtags" title="${esc(s.hashtags.join(' '))}"># Hashtags</button>
             ${s.pinnedComment ? '<button data-act="copy" data-what="pinned">💬 Commentaire épinglé</button>' : ''}
           </div>
-          ${s.chapters?.length ? `<details><summary>⏱️ Timeline / chapitres (${s.chapters.length}) — déjà dans la description</summary><div class="tp-small">${s.chapters.map((c) => `${F.dur(c.t)} ${esc(c.label)}`).join('<br>')}</div></details>` : ''}
+          ${s.chapters?.length ? `<details><summary>⏱️ Timeline / chapitres (${s.chapters.length}) — déjà dans la description</summary><div class="tp-small">${s.chapters.map((c) => `${F.ts(c.t)} ${esc(c.label)}`).join('<br>')}</div></details>` : ''}
           ${s.abTitles?.length ? `<details><summary>🧪 Titres pour « Tester et comparer »</summary><div class="tp-small">${s.abTitles.map((t) => `${UI.badge(t.score)} ${esc(t.text)}`).join('<br>')}</div></details>` : ''}
         ` : ''}
         ${issuesHtml(issues)}

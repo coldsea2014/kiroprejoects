@@ -9,8 +9,9 @@ const { run, fromManual } = await import('../lib/pipeline.js');
 const { ANALYSIS_SCHEMA, SEO_SCHEMA } = await import('../lib/prompts.js');
 
 const ANALYSIS = {
-  content_type: 'music', summary: 'Chanson chaâbi festive.', language: 'Arabe — darija marocaine', language_code: 'ar',
-  music: { primary_genre: 'chaabi', regional_style: 'Maroc', bpm: 118, time_signature: '6/8', mood: ['festif'], energy: 8, instruments: ['violon', 'darbouka'], vocals: 'voix masculine', hook_line: 'قولها ليا', hook_start: 32, song_title_guess: 'قولها ليا' },
+  content_type: 'music', summary: 'Chanson chaâbi festive.', language: 'Arabe — darija marocaine', language_code: 'ar', target_countries: ['MA', 'DZ'], search_language: 'ar',
+  highlights: [{ start: 33, label: 'اللازمة', kind: 'refrain', why: 'refrain le plus fort' }],
+  music: { primary_genre: 'chaabi', genre_search_terms: ['شعبي مغربي', 'chaabi marocain'], rhythm_candidates: [{ name: 'chaabi 6/8', confidence: 0.8, evidence: '6/8' }], regional_style: 'Maroc', bpm: 118, time_signature: '6/8', mood: ['festif'], energy: 8, instruments: ['violon', 'darbouka'], vocals: 'voix masculine', hook_line: 'قولها ليا', hook_start: 32, song_title_guess: 'قولها ليا' },
   timeline: [{ start: 0, label: 'Intro violon' }, { start: 32, label: 'Refrain' }, { start: 70, label: 'Couplet 2' }, { start: 150, label: 'Final' }],
   search_queries: ['شعبي مغربي', 'اغاني مغربية'], duration_seconds: 185, confidence: 0.86
 };
@@ -33,6 +34,10 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (url.includes(':generateContent')) {
     const body = JSON.parse(init.body);
+    if (body.tools) {
+      assert.ok(!body.generationConfig.responseSchema, 'pas de schéma avec la recherche Google');
+      return json({ candidates: [{ content: { parts: [{ text: 'Voici : {"keywords":["شعبي 2026"],"hashtags":["#شعبي_مغربي","nayda"],"title_patterns":["[titre] 🔥 [style]"],"notes":"ok"}' }] }, groundingMetadata: { groundingChunks: [{ web: { uri: 'https://example.com', title: 'Example' } }] }, finishReason: 'STOP' }] });
+    }
     assert.equal(init.headers['x-goog-api-key'], 'AIzaTEST');
     const hasMedia = body.contents[0].parts.some((p) => p.fileData);
     const out = hasMedia ? ANALYSIS : SEO;
@@ -46,10 +51,19 @@ await setSettings({ geminiKey: 'AIzaTEST', modelMain: 'gemini-9-pro', modelFast:
 test('chaîne complète avec un lien YouTube public', async () => {
   const steps = [];
   const pack = await run({ youtubeUrl: 'https://www.youtube.com/watch?v=abcdefghijk', ctx: { videoId: 'abcdefghijk' }, onProgress: (p) => steps.push(p.step) });
-  assert.deepEqual([...new Set(steps)], ['analyze', 'keywords', 'seo', 'done']);
-  const gen = calls.filter((c) => c.url.includes(':generateContent'));
+  assert.deepEqual([...new Set(steps)], ['analyze', 'keywords', 'trends', 'seo', 'done']);
+  const gen = calls.filter((c) => c.url.includes(':generateContent') && !c.body.tools);
   assert.equal(gen.length, 2);
+  const grounded = calls.filter((c) => c.url.includes(':generateContent') && c.body.tools);
+  assert.equal(grounded.length, 1, 'tendances web demandées une fois');
+  assert.equal(grounded[0].body.tools[0].google_search !== undefined, true);
   assert.equal(gen[0].body.contents[0].parts[0].fileData.fileUri, 'https://www.youtube.com/watch?v=abcdefghijk');
+  assert.match(gen[0].body.contents[0].parts[1].text, /GUIDE DES STYLES ET RYTHMES DU MONDE/);
+  assert.match(gen[1].body.contents[0].parts[0].text, /TENDANCES ACTUELLES/);
+  assert.match(gen[1].body.contents[0].parts[0].text, /#شعبي_مغربي/);
+  // recherches faites dans le pays du style entendu (MA puis DZ)
+  const sug = calls.filter((c) => c.url.includes('suggestqueries')).map((c) => new URL(c.url).searchParams.get('gl'));
+  assert.ok(sug.includes('MA') && sug.includes('DZ'));
   assert.equal(gen[0].body.generationConfig.responseMimeType, 'application/json');
   assert.equal(gen[0].body.generationConfig.responseSchema.type, 'OBJECT');
   assert.match(gen[1].body.contents[0].parts[0].text, /RECHERCHES RÉELLES SUR YOUTUBE/);
@@ -57,7 +71,9 @@ test('chaîne complète avec un lien YouTube public', async () => {
   assert.equal(pack.analysis.music.primary_genre, 'chaabi');
   assert.equal(pack.seo.mainKeyword, 'شعبي مغربي');
   assert.equal(pack.seo.chapters.length, 3);
-  assert.match(pack.seo.description, /0:32 اللازمة/);
+  assert.match(pack.seo.description, /00:32 🔥 اللازمة/);
+  assert.deepEqual(pack.trends.web.hashtags, ['#شعبي_مغربي', '#nayda']);
+  assert.equal(pack.keywords.locale.gl, 'MA');
   assert.match(pack.seo.description, /instagram\.com\/test/);
   assert.ok(pack.seo.tags.includes('قولها ليا'));
   assert.ok(pack.keywords.items.length > 0);
@@ -68,7 +84,7 @@ test('chaîne complète avec un lien YouTube public', async () => {
 test('régénération : l\'écoute est réutilisée (pas de nouvel envoi du média)', async () => {
   calls.length = 0;
   const pack = await run({ ctx: { packKey: 'vid:abcdefghijk' }, options: { mode: 'express' } });
-  const gen = calls.filter((c) => c.url.includes(':generateContent'));
+  const gen = calls.filter((c) => c.url.includes(':generateContent') && !c.body.tools);
   assert.equal(gen.length, 1);
   assert.ok(!gen[0].body.contents[0].parts.some((p) => p.fileData));
   assert.match(gen[0].body.contents[0].parts[0].text, /ANALYSE DE LA VIDÉO PAR ÉCOUTE/);

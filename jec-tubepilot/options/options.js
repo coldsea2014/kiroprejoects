@@ -10,13 +10,14 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 const SIMPLE = ['geminiKey', 'ytKey', 'mediaMode', 'titleCount', 'modelMain', 'modelFast'];
-const CHECKS = ['deleteFiles', 'transcribeLyrics', 'competitorLookup', 'autopilot', 'autofill', 'studioCard', 'tagSuggest', 'watchCard'];
+const CHECKS = ['deleteFiles', 'transcribeLyrics', 'competitorLookup', 'webTrends', 'autopilot', 'autofill', 'studioCard', 'tagSuggest', 'watchCard'];
 const PROFILE_FIELDS = [
   ['name', 'Nom du profil', 'ex. DOZA MANAL'],
   ['channelId', 'ID de la chaîne (UC…)', 'UCxxxxxxxxxxxxxxxxxxxxxx'],
   ['handle', '@handle', '@machaine'],
-  ['niche', 'Niche', 'ex. Musique marocaine, chansons originales IA'],
-  ['genre', 'Style musical habituel', 'ex. chaabi, pop marocaine, raï'],
+  ['artistName', 'Nom d\'artiste de la chaîne (autorisé dans titres et tags)', 'ex. DOZA MANAL'],
+  ['niche', 'Niche', 'ex. Musique du monde : khaliji, rap irakien, yéménite, RnB, jazz, chaabi…'],
+  ['genre', 'Styles publiés (Gemini détecte toujours le style de CHAQUE chanson)', 'ex. khaliji, sheilat, rap irakien, jazz, RnB, chaabi'],
   ['languages', 'Langues des métadonnées (la 1re = titres)', 'ex. ar, fr, en'],
   ['country', 'Pays principal du public (code)', 'ex. MA'],
   ['audience', 'Public visé', 'ex. 18-35 ans, Maroc et diaspora, écoute le soir'],

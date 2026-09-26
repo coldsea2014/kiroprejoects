@@ -26,6 +26,14 @@
     return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
   }
 
+  // secondes → horodatage de chapitre « 00:05 », « 03:12 » ou « 1:02:03 »
+  function ts(sec) {
+    sec = Math.max(0, Math.round(Number(sec) || 0));
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    const p2 = (x) => String(x).padStart(2, '0');
+    return h ? `${h}:${p2(m)}:${p2(s)}` : `${p2(m)}:${p2(s)}`;
+  }
+
   // « 1:02:03 » / « 02:03 » / « 83 » → secondes
   function parseTs(t) {
     const parts = String(t ?? '').trim().split(':').map((x) => Number(x));
@@ -130,5 +138,5 @@
 
   const scoreClass = (s) => (s >= 80 ? 'good' : s >= 55 ? 'mid' : 'bad');
 
-  g.TPF = { esc, clamp, uniq, sleep, num, dur, parseTs, isoDur, ago, vph, median, stripArabicMarks, norm, tokens, script, emojis, cleanFileName, pool, hash, scoreClass };
+  g.TPF = { esc, clamp, uniq, sleep, num, dur, ts, parseTs, isoDur, ago, vph, median, stripArabicMarks, norm, tokens, script, emojis, cleanFileName, pool, hash, scoreClass };
 })(globalThis);

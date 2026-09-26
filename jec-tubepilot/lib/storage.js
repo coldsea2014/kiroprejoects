@@ -5,7 +5,8 @@ export const DEFAULT_PROFILE = {
   name: 'Ma chaîne',
   channelId: '',
   handle: '',
-  niche: 'Musique',
+  artistName: '',
+  niche: 'Musique du monde',
   genre: '',
   languages: 'ar, fr',
   country: 'MA',
@@ -28,7 +29,8 @@ export const DEFAULTS = {
   mediaMode: 'auto',        // auto | audio | video
   deleteFiles: true,        // supprimer le fichier chez Google après l'analyse
   transcribeLyrics: true,
-  competitorLookup: true,   // recherche YouTube des concurrents (API, 100 unités)
+  competitorLookup: true,   // recherche YouTube des concurrents (API, ~102 unités par mot-clé comparé)
+  webTrends: true,          // tendances du moment via Gemini + recherche Google
   autopilot: true,          // analyse automatique dès l'import dans Studio
   autofill: true,           // remplir les champs non modifiés
   studioCard: true,

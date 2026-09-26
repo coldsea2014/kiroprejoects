@@ -17,6 +17,13 @@ test('format : durées, horodatages, nombres', () => {
   assert.equal(F.num(3400000), '3,4 M');
 });
 
+test('format : horodatage de chapitre 00:05', () => {
+  assert.equal(F.ts(5), '00:05');
+  assert.equal(F.ts(192), '03:12');
+  assert.equal(F.ts(3723), '1:02:03');
+  assert.equal(F.parseTs('00:05'), 5);
+});
+
 test('format : nom de fichier → titre', () => {
   assert.equal(F.cleanFileName('قُولْهَا-لِيَّا [usesuno.com].webm'), 'قولها ليا');
   assert.equal(F.cleanFileName('VID_20260923_183012.mp4'), '');
@@ -115,7 +122,7 @@ test('postprocess : fiche complète conforme', () => {
   assert.equal(pack.seo.tags[0], 'اغاني مغربية');
   assert.equal(pack.seo.hashtags.length, 5);
   assert.ok(pack.seo.hashtags.every((h) => /^#\S+$/.test(h)));
-  assert.match(pack.seo.description, /⏱️ التوقيتات\n0:00 مقدمة\n0:30 الكوبلي\n1:15 اللازمة/);
+  assert.match(pack.seo.description, /⏱️ التوقيتات\n00:00 مقدمة\n00:30 الكوبلي\n01:15 اللازمة/);
   assert.ok(pack.seo.description.length <= 5000);
   assert.ok(pack.seo.description.includes('https://insta.com/x'));
   assert.ok(pack.score.overall > 0);
@@ -124,7 +131,7 @@ test('postprocess : fiche complète conforme', () => {
 test('postprocess : description trop longue raccourcie sans perdre les chapitres', () => {
   const d = Post.assembleDescription({ intro: 'intro', body: 'x '.repeat(4000), chapters: [{ t: 0, label: 'a' }, { t: 20, label: 'b' }, { t: 40, label: 'c' }], cta: 'Abonnez-vous', hashtags: ['#a'] }, 'fr');
   assert.ok(d.length <= 5000);
-  assert.match(d, /0:40 c/);
+  assert.match(d, /00:40 c/);
   assert.match(d, /#a$/);
 });
 
@@ -133,4 +140,28 @@ test('postprocess : réponse collée depuis Gemini', () => {
   const r = Post.parseManual(txt);
   assert.equal(r.seo.titles[0].text, 'T');
   assert.throws(() => Post.parseManual('pas de json'), /JSON/);
+});
+
+test('postprocess : meilleurs moments 🔥 fusionnés dans une timeline valide', () => {
+  const merged = Post.mergeHighlights(
+    [{ start: 0, label: 'Intro' }, { start: 30, label: 'Refrain' }, { start: 80, label: 'Couplet 2' }, { start: 140, label: 'Final' }],
+    [{ start: 34, label: 'Refrain', kind: 'refrain' }, { start: 110, label: 'Drop', kind: 'drop' }, { start: 175, label: 'trop tard' }],
+    180
+  );
+  assert.deepEqual(merged.map((c) => c.label), ['Intro', '🔥 Refrain', 'Couplet 2', 'Final', '🔥 Drop']);
+  const ch = P.buildChapters(merged, 180);
+  assert.deepEqual(ch.map((c) => c.t), [0, 30, 80, 110, 140]);
+  assert.deepEqual(P.validateChapters(ch, 180), []);
+  const pack = Post.buildPack({
+    key: 'k', ctx: { profile: { languages: 'fr' }, duration: 180 },
+    analysis: { content_type: 'music', language_code: 'en', duration_seconds: 180, timeline: [{ start: 0, label: 'Intro' }, { start: 30, label: 'Hook' }, { start: 80, label: 'Verse 2' }], highlights: [{ start: 31, label: 'Hook', kind: 'refrain' }], music: { genre_search_terms: ['arabic rnb'] } },
+    seo: { titles: [{ text: 'Titre' }], tags: ['a'], hashtags: ['#a'] }
+  });
+  assert.match(pack.seo.description, /⏱️ Timeline — 🔥 best moments\n00:00 Intro\n00:30 🔥 Hook\n01:20 Verse 2/);
+  assert.ok(pack.seo.tags.includes('arabic rnb'));
+});
+
+test('postprocess : pas de timeline inventée sans écoute', () => {
+  const pack = Post.buildPack({ key: 'k', ctx: { duration: 200 }, analysis: null, seo: { titles: [{ text: 'T' }], chapters: [{ start: 0, label: 'a' }, { start: 20, label: 'b' }, { start: 40, label: 'c' }] } });
+  assert.equal(pack.seo.chapters.length, 0);
 });

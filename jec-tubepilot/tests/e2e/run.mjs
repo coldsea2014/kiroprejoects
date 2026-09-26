@@ -14,9 +14,10 @@ const studioHtml = readFileSync(path.join(here, 'studio-mock.html'), 'utf8');
 const watchHtml = readFileSync(path.join(here, 'watch-mock.html'), 'utf8');
 
 const ANALYSIS = {
-  content_type: 'music', summary: 'Chanson chaâbi marocaine festive, voix masculine, violon et darbouka.', language: 'Arabe — darija marocaine', language_code: 'ar', language_evidence: '« قولها ليا », « بزاف »',
+  content_type: 'music', summary: 'Chanson chaâbi marocaine festive, voix masculine, violon et darbouka.', language: 'Arabe — darija marocaine', language_code: 'ar', dialect: 'darija marocaine', language_evidence: '« قولها ليا », « بزاف »', target_countries: ['MA', 'DZ'], search_language: 'ar',
+  highlights: [{ start: 13, end: 25, label: 'اللازمة', kind: 'refrain', why: 'refrain le plus accrocheur' }, { start: 30, end: 38, label: 'الكمنجة', kind: 'solo', why: 'solo de violon' }],
   is_cover: false, cover_original: '',
-  music: { primary_genre: 'chaabi', subgenres: ['nayda'], regional_style: 'Maroc', genre_confidence: 0.9, genre_evidence: '6/8 marocain, violon', bpm: 118, time_signature: '6/8', key: 'La mineur', scale_or_maqam: 'Hijaz', rhythm_pattern: '6/8 marocain', mood: ['festif', 'nostalgique'], energy: 8, instruments: ['violon', 'darbouka', 'bendir'], vocals: 'voix masculine, légère autotune', production: 'propre', hook_line: 'قولها ليا', hook_start: 12, song_title_guess: 'قولها ليا', lyrics_theme: 'amour et déclaration', lyrics: 'قولها ليا\nقولها ليا يا الزين', listening_moments: ['mariage', 'soirée'], similar_styles: ['reggada'] },
+  music: { primary_genre: 'chaabi marocain', fusion: '', pulse: 'ternaire', percussion: ['darbouka', 'bendir'], rhythm_candidates: [{ name: 'chaabi 6/8', confidence: 0.82, evidence: 'cycle 6/8, bendir' }, { name: 'reggada', confidence: 0.12, evidence: 'pas de gasba' }], genre_search_terms: ['شعبي مغربي', 'chaabi marocain'], subgenres: ['nayda'], regional_style: 'Maroc', genre_confidence: 0.9, genre_evidence: '6/8 marocain, violon', bpm: 118, time_signature: '6/8', key: 'La mineur', scale_or_maqam: 'Hijaz', rhythm_pattern: '6/8 marocain', mood: ['festif', 'nostalgique'], energy: 8, instruments: ['violon', 'darbouka', 'bendir'], vocals: 'voix masculine, légère autotune', production: 'propre', hook_line: 'قولها ليا', hook_start: 12, song_title_guess: 'قولها ليا', lyrics_theme: 'amour et déclaration', lyrics: 'قولها ليا\nقولها ليا يا الزين', listening_moments: ['mariage', 'soirée'], similar_styles: ['reggada'] },
   timeline: [{ start: 0, end: 12, label: 'Intro violon', kind: 'intro' }, { start: 12, end: 25, label: 'Refrain', kind: 'refrain' }, { start: 25, end: 40, label: 'Couplet', kind: 'couplet' }],
   tracks: [], best_short: { start: 12, end: 30, reason: 'refrain accrocheur' }, thumbnail_moment: 14, visual: { description: 'visuel animé' }, audience: 'Mariages et soirées', search_queries: ['شعبي مغربي', 'قولها ليا'], topics: ['mariage'], duration_seconds: 40, confidence: 0.86, uncertain: []
 };
@@ -73,6 +74,7 @@ await ctx.route('https://generativelanguage.googleapis.com/**', async (r) => {
   if (url.pathname.endsWith(':generateContent')) {
     geminiCalls++;
     const body = JSON.parse(req.postData());
+    if (body.tools) return r.fulfill({ headers: cors, json: { candidates: [{ content: { parts: [{ text: '{"keywords":["شعبي 2026","نايضة اعراس"],"hashtags":["#شعبي_مغربي","#نايضة"],"title_patterns":["[titre] 🔥 [style]"],"notes":"Le chaabi de mariage monte avant l\'été."}' }] }, groundingMetadata: { groundingChunks: [{ web: { uri: 'https://example.com/tendances', title: 'example.com' } }] }, finishReason: 'STOP' }] } });
     const media = body.contents[0].parts.some((p) => p.fileData);
     await new Promise((res) => setTimeout(res, 300));
     return r.fulfill({ headers: cors, json: { candidates: [{ content: { parts: [{ text: JSON.stringify(media ? ANALYSIS : SEO) }] }, finishReason: 'STOP' }], usageMetadata: { totalTokenCount: 999 } } });
@@ -112,7 +114,7 @@ const res = await studio.evaluate(() => ({
 }));
 log('titre inséré :', res.title);
 log('tags insérés :', res.tags.join(', '));
-if (!/0:12 اللازمة/.test(res.description)) errors.push('description sans chapitres : ' + res.description.slice(0, 200));
+if (!/00:12 🔥 اللازمة/.test(res.description)) errors.push('description sans timeline 🔥 : ' + res.description.slice(0, 300));
 if (!res.description.includes('instagram.com/test')) errors.push('signature absente');
 log('envoi à Gemini :', uploaded, 'octets · appels generateContent :', geminiCalls);
 await studio.waitForTimeout(600);

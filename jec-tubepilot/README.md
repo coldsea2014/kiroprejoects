@@ -2,6 +2,24 @@
 
 Extension Chrome pour chaînes YouTube (pensée d'abord pour les chaînes **musique**). Vous importez votre vidéo dans YouTube Studio. **Gemini écoute et regarde le fichier lui-même**, même si la vidéo est privée. TubePilot vérifie ensuite les mots-clés sur les **vraies recherches YouTube** et analyse les concurrents. Il écrit le titre, la description avec **timeline / chapitres**, les tags et les hashtags, puis **les insère tout seul dans Studio**. Tout respecte le règlement YouTube / Google.
 
+## Nouveautés de la v4.1
+
+- **Tous les rythmes du monde.** Gemini reçoit un guide d'écoute : Golfe / khaliji (samri, khabiti, adani, sheilat), Arabie saoudite, Yémen (sana'ani, adani, hadrami), Irak (choubi, maqam, rap irakien), Levant, Égypte (maqsum, saïdi, mahraganat), Maghreb, Turquie, Afrique, rap / trap / drill, RnB, jazz, fusions. Pour chaque chanson, il suit une méthode :
+  - il compte le tempo ;
+  - il repère la pulsation (binaire, ternaire, swing, aksak), les percussions, le maqam et le dialecte ;
+  - il compare 2 à 4 styles candidats, avec leur probabilité.
+
+  Le style est **toujours détecté sur la chanson**, jamais deviné d'après le nom de la chaîne.
+- **Timeline au format `00:05 Refrain`**, avec les **meilleurs moments marqués 🔥** : refrain le plus fort, drop, solo, montée. Exemple : `00:45 🔥 اللازمة`. La timeline reste valide pour les chapitres YouTube.
+- **Mots-clés du bon pays.** Les recherches sont faites dans le pays et la langue du style entendu : khaliji → Arabie saoudite, Koweït, Émirats ; rap irakien → Irak ; chaabi → Maroc. Avec la clé YouTube, les **2 meilleurs mots-clés sont comparés sur YouTube** et le plus fort devient le mot-clé principal.
+- **Hashtags et recherches en tendance** :
+  - YouTube Tendances Musique du pays (hashtags, tags, mots des titres) ;
+  - recherche Google faite par Gemini (ce qui monte en ce moment, avec les sources).
+
+  Gemini n'en garde que ceux qui correspondent vraiment à la chanson.
+- **Accroches de pro.** 8 leviers (recherche + émotion, adresse directe, partage, moment d'écoute, curiosité vraie, fusion, question, mot-clé pur). Les titres sont écrits dans le dialecte du public. Un « nom d'artiste de la chaîne » peut être ajouté dans le profil.
+- **Clés Gemini et YouTube directement dans le panneau** (🔑 Clés API), avec le choix du modèle Pro ou Flash.
+
 ## Ce qui change par rapport à JEC YouTube Booster v3.6
 
 | | JEC Booster v3.6 | **TubePilot v4** |
@@ -18,7 +36,7 @@ Extension Chrome pour chaînes YouTube (pensée d'abord pour les chaînes **musi
 
 ## Installation
 
-1. Décompressez `jec-tubepilot-4.0.0.zip` dans un dossier que vous gardez.
+1. Décompressez `jec-tubepilot-4.1.0.zip` dans un dossier que vous gardez.
 2. Ouvrez `chrome://extensions` → activez **Mode développeur** → **Charger l'extension non empaquetée** → choisissez le dossier `jec-tubepilot`.
 3. Épinglez l'icône (violet/rose). La page **Réglages** s'ouvre toute seule.
 4. Rechargez vos onglets YouTube et YouTube Studio (F5).
@@ -27,12 +45,13 @@ Extension Chrome pour chaînes YouTube (pensée d'abord pour les chaînes **musi
 
 **1. Clé Gemini** (obligatoire pour l'écoute automatique)
 - Ouvrez <https://aistudio.google.com/apikey> avec votre compte Google → *Create API key* → copiez la clé (`AIza…`).
-- Collez-la dans Réglages → **Tester la clé**. Les modèles de votre compte sont chargés, et le meilleur « Pro » et le meilleur « Flash » sont choisis tout seuls.
+- Collez-la dans le panneau (🔑 Clés API) ou dans Réglages → **Tester la clé**. Les modèles de votre compte sont chargés, et le meilleur « Pro » et le meilleur « Flash » sont choisis tout seuls.
 - ℹ️ L'abonnement **Gemini Pro** (gemini.google.com) et l'**API** sont deux choses séparées chez Google. L'API a un quota gratuit. Si le modèle Pro atteint sa limite du jour, choisissez un modèle Flash dans Réglages. Votre abonnement reste utilisable avec le **mode manuel** (voir plus bas).
 
 **2. Clé YouTube Data API v3** (concurrents, tendances, statistiques)
 - <https://console.cloud.google.com/apis/library/youtube.googleapis.com> → **Activer**.
 - <https://console.cloud.google.com/apis/credentials> → **Créer des identifiants** → **Clé API**.
+- Collez-la dans le panneau (🔑 Clés API) ou dans Réglages, section 2.
 - Quota : 10 000 unités / jour. Une analyse de concurrence coûte environ 102 unités, une page de tendances 1 unité. Tout est mis en cache.
 
 Puis, dans Réglages → **Profils** : pour chaque chaîne, indiquez son **ID `UC…`** (visible dans l'adresse de Studio), ses langues (ex. `ar, fr`), son pays (`MA`), son style, son public et votre bloc de signature (liens). Dans Studio, le bon profil est choisi automatiquement.

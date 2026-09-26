@@ -112,7 +112,7 @@
     return out.length >= LIMITS.chaptersMin ? out.slice(0, 60) : [];
   }
 
-  const chaptersText = (chapters) => chapters.map((c) => `${F.dur(c.t)} ${c.label}`).join('\n');
+  const chaptersText = (chapters) => chapters.map((c) => `${F.ts(c.t)} ${c.label}`).join('\n');
 
   /* ---------- Nettoyage ---------- */
   function sanitizeTitle(t) {

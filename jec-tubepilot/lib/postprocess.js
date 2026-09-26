@@ -4,18 +4,36 @@
   const F = g.TPF, P = g.TPPolicy, S = g.TPSeo;
 
   const LABELS = {
-    ar: { chapters: '⏱️ التوقيتات', lyrics: '🎤 كلمات الأغنية', intro: 'مقدمة' },
-    fr: { chapters: '⏱️ Chapitres', lyrics: '🎤 Paroles', intro: 'Intro' },
-    en: { chapters: '⏱️ Chapters', lyrics: '🎤 Lyrics', intro: 'Intro' },
-    es: { chapters: '⏱️ Capítulos', lyrics: '🎤 Letra', intro: 'Intro' }
+    ar: { chapters: '⏱️ التوقيتات', hot: ' — 🔥 أقوى اللحظات', lyrics: '🎤 كلمات الأغنية', intro: 'مقدمة' },
+    fr: { chapters: '⏱️ Timeline', hot: ' — 🔥 meilleurs moments', lyrics: '🎤 Paroles', intro: 'Intro' },
+    en: { chapters: '⏱️ Timeline', hot: ' — 🔥 best moments', lyrics: '🎤 Lyrics', intro: 'Intro' },
+    es: { chapters: '⏱️ Momentos', hot: ' — 🔥 lo mejor', lyrics: '🎤 Letra', intro: 'Intro' }
   };
+  const HOT = '🔥';
 
   const splitList = (s) => String(s || '').split(/[,\n]+/).map((x) => x.trim()).filter(Boolean);
+  // langue des intitulés de la description : celle de la chanson, sinon la 1re langue de la chaîne
   const langOf = (ctx, analysis) => {
-    const first = splitList(ctx.profile?.languages || '').map((x) => x.split(/\s+/)[0])[0];
-    const code = String(first || analysis?.language_code || 'fr').slice(0, 2).toLowerCase();
-    return LABELS[code] ? code : 'fr';
+    const song = String(analysis?.language_code || '').slice(0, 2).toLowerCase();
+    if (LABELS[song]) return song;
+    const first = String(splitList(ctx.profile?.languages || '')[0] || '').split(/\s+/)[0].slice(0, 2).toLowerCase();
+    return LABELS[first] ? first : 'fr';
   };
+
+  // Meilleurs moments → marqués 🔥 dans la timeline (fusionnés avec le chapitre le plus proche s'il est à moins de 10 s)
+  function mergeHighlights(chapters, highlights, duration) {
+    const list = (chapters || []).map((c) => ({ t: Math.round(Number(c.start ?? c.t) || 0), label: String(c.label || c.title || '').trim() })).filter((c) => c.label);
+    for (const h of highlights || []) {
+      const t = Math.round(Number(h.start));
+      const label = String(h.label || '').trim();
+      if (!Number.isFinite(t) || t < 0 || !label || (duration && t > duration - P.LIMITS.chapterMinSec)) continue;
+      let near = null;
+      list.forEach((c) => { if (!near || Math.abs(c.t - t) < Math.abs(near.t - t)) near = c; });
+      if (near && Math.abs(near.t - t) < P.LIMITS.chapterMinSec) { if (!near.label.startsWith(HOT)) near.label = `${HOT} ${near.label}`; }
+      else list.push({ t, label: `${HOT} ${label}` });
+    }
+    return list.map((c) => ({ start: c.t, label: c.label }));
+  }
 
   function scoreCtx(ctx, seo, analysis, comp) {
     return {
@@ -50,7 +68,7 @@
       String(intro || '').trim(),
       b,
       lyrics ? `${L.lyrics}\n${String(lyrics).trim()}` : '',
-      chapters.length ? `${L.chapters}\n${P.chaptersText(chapters)}` : '',
+      chapters.length ? `${L.chapters}${chapters.some((c) => c.label.startsWith(HOT)) ? L.hot : ''}\n${P.chaptersText(chapters)}` : '',
       String(cta || '').trim(),
       String(signature || '').trim(),
       hashtags.join(' ')
@@ -66,7 +84,7 @@
   }
 
   // Fiche finale à partir de l'analyse (écoute) et du JSON SEO de Gemini
-  function buildPack({ key, aliases = [], source = {}, ctx = {}, analysis = null, seo = {}, kw = null, comp = null, models = {}, usage = {}, media = null }) {
+  function buildPack({ key, aliases = [], source = {}, ctx = {}, analysis = null, seo = {}, kw = null, comp = null, models = {}, usage = {}, media = null, trends = null, warnings = [] }) {
     const sctx = scoreCtx(ctx, seo, analysis, comp);
     const lang = langOf(ctx, analysis);
     const titles = rankTitles(seo.titles, sctx);
@@ -77,7 +95,8 @@
       : seo.chapters?.length ? seo.chapters
         : analysis.tracks?.length >= 3 ? analysis.tracks.map((t) => ({ start: t.start, label: t.title }))
           : analysis.timeline || [];
-    const chapters = !duration || duration >= 30 ? P.buildChapters(rawChapters, duration, LABELS[lang].intro) : [];
+    const withHot = analysis ? mergeHighlights(rawChapters, analysis.highlights, duration) : rawChapters;
+    const chapters = !duration || duration >= 30 ? P.buildChapters(withHot, duration, LABELS[lang].intro) : [];
     const hashtags = F.uniq([...(seo.hashtags || []), ...splitList(ctx.profile?.defaultHashtags)].map(P.normalizeHashtag).filter(Boolean)).slice(0, 5);
     const ownSong = !analysis?.is_cover;
     const description = assembleDescription({
@@ -95,6 +114,7 @@
       sctx.keyword,
       ...(seo.tags || []),
       analysis?.music?.song_title_guess,
+      ...(analysis?.music?.genre_search_terms || []).slice(0, 4),
       ...splitList(ctx.profile?.defaultTags),
       ...sctx.keywords,
       ...popular,
@@ -111,11 +131,17 @@
       media,
       ctx: { fileName: ctx.fileName || '', cleanTitle: ctx.cleanTitle || '', duration, isShort: !!ctx.isShort, profileId: ctx.profile?.id || '', profileName: ctx.profile?.name || '', localBpm: ctx.localBpm || null },
       analysis,
-      keywords: kw ? { seed: kw.seed, items: (kw.items || []).slice(0, 60), sources: kw.sources || [] } : null,
+      keywords: kw ? { seed: kw.seed, items: (kw.items || []).slice(0, 60), sources: kw.sources || [], locale: kw.locale || null, compared: kw.compared || [] } : null,
+      trends: trends ? {
+        youtube: trends.youtube ? { region: trends.youtube.region, hashtags: trends.youtube.hashtags.slice(0, 15), tags: trends.youtube.tags.slice(0, 15), words: trends.youtube.words.slice(0, 12) } : null,
+        web: trends.web || null
+      } : null,
+      warnings,
       competition: comp ? { kw: comp.kw, demand: comp.demand, competition: comp.competition, overall: comp.overall, medianViews: comp.medianViews, medianSubs: comp.medianSubs, patterns: comp.patterns, tags: comp.tags, videos: (comp.videos || []).slice(0, 10).map((v) => ({ id: v.id, title: v.title, channelTitle: v.channelTitle, views: v.views, subs: v.subs, ageDays: v.ageDays, vph: v.vph })) } : null,
       seo: {
         mainKeyword: sctx.keyword,
         secondaryKeywords: sctx.keywords,
+        keywordStrategy: seo.keyword_strategy || '',
         audienceInsight: seo.audience_insight || '',
         titles,
         abTitles,
@@ -158,5 +184,5 @@
     return { analysis: obj.analysis || null, seo };
   }
 
-  g.TPPost = { buildPack, rescore, parseManual, rankTitles, assembleDescription, LABELS };
+  g.TPPost = { buildPack, rescore, parseManual, rankTitles, assembleDescription, mergeHighlights, LABELS };
 })(globalThis);

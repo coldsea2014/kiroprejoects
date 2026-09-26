@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "JEC TubePilot — SEO YouTube par Gemini",
   "short_name": "TubePilot",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Gemini écoute et regarde vos vidéos (même privées) : titres à forte accroche, description avec timeline, tags ≤ 500, mots-clés réels, concurrents, insertion auto dans Studio.",
   "minimum_chrome_version": "116",
   "icons": {

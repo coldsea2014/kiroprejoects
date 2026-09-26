@@ -65,7 +65,7 @@ async function loadSettings() {
   const cur = sel.value || settings.activeProfile;
   sel.innerHTML = settings.profiles.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
   sel.value = settings.profiles.some((p) => p.id === cur) ? cur : settings.profiles[0].id;
-  show($('#keyWarn'), !settings.geminiKey);
+  renderKeys();
   $('#mediaMode').value = settings.mediaMode || 'auto';
   $('#lyricsChk').checked = !!settings.transcribeLyrics;
   $('#compChk').checked = !!settings.competitorLookup && !!settings.ytKey;
@@ -83,6 +83,56 @@ async function renderFooter() {
   const el = $('#status');
   const html = `<span>🤖 ${esc(settings.modelMain || 'modèle auto')}</span><span>📊 YouTube API : ${settings.ytKey ? `${q.toLocaleString('fr')} / 10 000 unités aujourd'hui` : 'pas de clé'}</span>`;
   if (el.dataset.base) el.dataset.base = html; else el.innerHTML = html;
+}
+
+/* =============== Clés API (aussi dans Réglages) =============== */
+function renderKeys() {
+  const box = $('#keysBox');
+  const g = !!settings.geminiKey, y = !!settings.ytKey;
+  $('#keysState').innerHTML = `Gemini ${g ? '<span class="ok">✓</span>' : '<b style="color:var(--bad)">✗</b>'} · YouTube ${y ? '<span class="ok">✓</span>' : '<b style="color:var(--bad)">✗</b>'}${settings.modelMain ? ` · <span class="muted">${esc(settings.modelMain)}</span>` : ''}`;
+  if (!g || !y) box.open = true;
+  if (document.activeElement !== $('#gKey')) $('#gKey').value = settings.geminiKey || '';
+  if (document.activeElement !== $('#yKey')) $('#yKey').value = settings.ytKey || '';
+  const models = [...(settings.models || [])];
+  // modèle choisi absent de la liste (liste pas encore rechargée) : on le garde visible
+  [settings.modelMain, settings.modelFast].forEach((id) => { if (id && !models.some((m) => m.id === id)) models.push({ id, label: id }); });
+  const opts = models.map((m) => `<option value="${esc(m.id)}">${esc(m.label || m.id)}</option>`).join('');
+  $('#mMain').innerHTML = opts || '<option value="">(testez la clé Gemini)</option>';
+  $('#mFast').innerHTML = opts || '<option value="">(testez la clé Gemini)</option>';
+  if (settings.modelMain) $('#mMain').value = settings.modelMain;
+  if (settings.modelFast) $('#mFast').value = settings.modelFast;
+  $('#webChk').checked = settings.webTrends !== false;
+}
+
+async function saveGeminiKey() {
+  const key = $('#gKey').value.trim();
+  const st = $('#gState');
+  if (!key) { st.textContent = 'Collez la clé (elle commence par AIza).'; return; }
+  st.textContent = 'Test en cours…';
+  try {
+    const { listModels, rankModels } = await import('../lib/gemini.js');
+    const models = await listModels(key);
+    if (!models.length) throw new Error('Aucun modèle Gemini disponible pour cette clé.');
+    const r = rankModels(models);
+    const main = models.some((m) => m.id === settings.modelMain) ? settings.modelMain : r.pro || r.flash || r.all[0].id;
+    const fast = models.some((m) => m.id === settings.modelFast) ? settings.modelFast : r.flash || r.lite || main;
+    settings = await setSettings({ geminiKey: key, models: r.all.map((m) => ({ id: m.id, label: m.label })), modelMain: main, modelFast: fast });
+    st.innerHTML = `<span class="ok">✓ Clé valide — ${models.length} modèles</span>`;
+    loadSettings();
+  } catch (e) { st.innerHTML = `<span style="color:var(--bad)">✘ ${esc(e.message)}</span>`; }
+}
+
+async function saveYtKey() {
+  const key = $('#yKey').value.trim();
+  const st = $('#yState');
+  if (!key) { st.textContent = 'Collez la clé YouTube Data API v3.'; return; }
+  st.textContent = 'Test en cours…';
+  try {
+    await YT.testKey(key);
+    settings = await setSettings({ ytKey: key });
+    st.innerHTML = '<span class="ok">✓ Clé YouTube valide</span>';
+    loadSettings();
+  } catch (e) { st.innerHTML = `<span style="color:var(--bad)">✘ ${esc(e.message)}</span>`; }
 }
 
 /* =============== Contexte : onglet actif =============== */
@@ -178,7 +228,7 @@ async function runNow() {
   // la chaîne ouverte dans Studio choisit son profil ; sinon celui du menu
   const channelMatch = ctx?.channelId && settings.profiles.some((p) => p.channelId === ctx.channelId);
   const extra = { keyword: $('#kwIn').value.trim(), notes: $('#notesIn').value.trim(), lyrics: $('#lyricsIn').value.trim(), profileId: channelMatch ? undefined : profile().id };
-  const options = { mediaMode: $('#mediaMode').value, transcribeLyrics: $('#lyricsChk').checked, competitors: $('#compChk').checked, reanalyze: $('#reChk').checked };
+  const options = { mediaMode: $('#mediaMode').value, transcribeLyrics: $('#lyricsChk').checked, competitors: $('#compChk').checked, webTrends: $('#webChk').checked, reanalyze: $('#reChk').checked };
 
   if (src === 'studio') {
     if (ctx?.page !== 'studio' || ctx.stale) return showError('Ouvrez l\'onglet YouTube Studio où vous importez la vidéo (ou rechargez-le), ou choisissez « Fichier de l\'ordinateur ».');
@@ -258,34 +308,56 @@ function issuesHtml(list, notes = []) {
 }
 
 function analysisHtml(a, p) {
-  if (!a) return `<div class="box small muted">Mode express : pas d'écoute. Lancez l'analyse avec le fichier pour obtenir style, tempo, refrain et timeline.</div>`;
+  if (!a) return `<div class="box small muted">Mode express : pas d'écoute. Lancez l'analyse avec le fichier ou le lien public pour obtenir style, rythme, refrain, meilleurs moments et timeline.</div>`;
   const m = a.music || {};
   const local = p.ctx?.localBpm;
   const kv = [
     ['Contenu', esc(a.content_type)],
     ['Style', m.primary_genre ? `<b>${esc(m.primary_genre)}</b>${m.subgenres?.length ? ' · ' + esc(m.subgenres.join(', ')) : ''}${m.regional_style ? ` <span class="muted">(${esc(m.regional_style)})</span>` : ''}${m.genre_confidence ? ` <span class="muted">${Math.round(m.genre_confidence * 100)} %</span>` : ''}` : ''],
-    ['Tempo', m.bpm || local ? `${m.bpm ? `${Math.round(m.bpm)} BPM (Gemini)` : ''}${m.bpm && local ? ' · ' : ''}${local ? `${local} BPM (mesuré${p.media?.bpm?.alt ? ` ou ${p.media.bpm.alt}` : ''})` : ''}${m.time_signature ? ' · ' + esc(m.time_signature) : ''}` : ''],
+    ['Fusion', esc(m.fusion || '')],
+    ['Tempo', m.bpm || local ? `${m.bpm ? `${Math.round(m.bpm)} BPM (Gemini)` : ''}${m.bpm && local ? ' · ' : ''}${local ? `${local} BPM (mesuré${p.media?.bpm?.alt ? ` ou ${p.media.bpm.alt}` : ''})` : ''}${m.time_signature ? ' · ' + esc(m.time_signature) : ''}${m.pulse ? ' · ' + esc(m.pulse) : ''}` : ''],
     ['Rythme', esc(m.rhythm_pattern || '')],
+    ['Percussions', m.percussion?.length ? esc(m.percussion.join(', ')) : ''],
     ['Tonalité', esc([m.key, m.scale_or_maqam].filter(Boolean).join(' · '))],
     ['Énergie', m.energy ? `${m.energy}/10` : ''],
     ['Ambiance', m.mood?.length ? m.mood.map((x) => `<span class="chip">${esc(x)}</span>`).join(' ') : ''],
     ['Instruments', m.instruments?.length ? esc(m.instruments.join(', ')) : ''],
     ['Voix', esc(m.vocals || '')],
-    ['Langue', a.language ? `${esc(a.language)}${a.language_evidence ? ` <span class="muted">— ${esc(a.language_evidence)}</span>` : ''}` : ''],
-    ['Refrain', m.hook_line ? `« <b>${esc(m.hook_line)}</b> »${m.hook_start != null ? ` à ${F.dur(m.hook_start)}` : ''}` : ''],
+    ['Langue', a.language ? `${esc(a.language)}${a.dialect ? ` · <b>${esc(a.dialect)}</b>` : ''}${a.language_evidence ? ` <span class="muted">— ${esc(a.language_evidence)}</span>` : ''}` : ''],
+    ['Public (pays)', a.target_countries?.length ? esc(a.target_countries.join(', ')) : ''],
+    ['Refrain', m.hook_line ? `« <b>${esc(m.hook_line)}</b> »${m.hook_start != null ? ` à ${F.ts(m.hook_start)}` : ''}` : ''],
     ['Thème', esc(m.lyrics_theme || '')],
     ['Moments', m.listening_moments?.length ? esc(m.listening_moments.join(', ')) : ''],
+    ['Recherché comme', m.genre_search_terms?.length ? m.genre_search_terms.map((x) => `<span class="chip click" data-kwseed="${esc(x)}" title="Analyser ce mot-clé">${esc(x)}</span>`).join(' ') : ''],
     ['Reprise', a.is_cover ? `oui — ${esc(a.cover_original || '?')}` : ''],
     ['Public', esc(a.audience || '')],
-    ['Short idéal', a.best_short?.end ? `${F.dur(a.best_short.start)} → ${F.dur(a.best_short.end)} <span class="muted">${esc(a.best_short.reason || '')}</span>` : ''],
+    ['Short idéal', a.best_short?.end ? `${F.ts(a.best_short.start)} → ${F.ts(a.best_short.end)} <span class="muted">${esc(a.best_short.reason || '')}</span>` : ''],
     ['Confiance', a.confidence != null ? `${Math.round(a.confidence * 100)} %` : '']
   ].filter(([, v]) => v);
+  const cands = (m.rhythm_candidates || []).filter((c) => c?.name);
   return `<details class="box" open><summary>🎧 Ce que Gemini a entendu et vu</summary>
     <div class="small">${esc(a.summary || '')}</div>
     <dl class="kv">${kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
-    ${a.timeline?.length ? `<details><summary class="small">⏱️ Structure (${a.timeline.length} repères)</summary><table><tr><th>Début</th><th>Partie</th><th>Type</th></tr>${a.timeline.map((t) => `<tr><td>${F.dur(t.start)}</td><td>${esc(t.label)}</td><td class="muted">${esc(t.kind || '')}</td></tr>`).join('')}</table></details>` : ''}
+    ${cands.length ? `<details><summary class="small">🥁 Styles / rythmes envisagés</summary>${cands.map((c) => `<div class="hbar"><span>${esc(c.name)}</span>${bar((c.confidence || 0) * 100)}<span>${Math.round((c.confidence || 0) * 100)} %</span></div><div class="tiny muted" style="margin:-2px 0 4px">${esc(c.evidence || '')}</div>`).join('')}</details>` : ''}
+    ${a.highlights?.length ? `<div><b class="small">🔥 Meilleurs moments</b>${a.highlights.map((h) => `<div class="item small"><b>${F.ts(h.start)}</b><div class="grow">${esc(h.label)} <span class="chip">${esc(h.kind || '')}</span><div class="tiny muted">${esc(h.why || '')}</div></div></div>`).join('')}</div>` : ''}
+    ${a.timeline?.length ? `<details><summary class="small">⏱️ Structure complète (${a.timeline.length} repères)</summary><table><tr><th>Début</th><th>Partie</th><th>Type</th></tr>${a.timeline.map((t) => `<tr><td>${F.ts(t.start)}</td><td>${esc(t.label)}</td><td class="muted">${esc(t.kind || '')}</td></tr>`).join('')}</table></details>` : ''}
     ${m.lyrics ? `<details><summary class="small">🎤 Paroles transcrites</summary><div class="lyrics">${esc(m.lyrics)}</div><button class="small" data-act="copyLyrics">Copier les paroles</button></details>` : ''}
     ${a.uncertain?.length ? `<div class="small muted">❔ Incertain : ${esc(a.uncertain.join(' · '))}</div>` : ''}
+  </details>`;
+}
+
+function trendsHtml(p) {
+  const yt = p.trends?.youtube, web = p.trends?.web;
+  if (!yt && !web) return '';
+  return `<details class="box"><summary>📈 Tendances du moment utilisées</summary>
+    ${yt ? `<div class="small"><b>YouTube Tendances Musique (${esc(yt.region)})</b></div>
+      ${yt.hashtags?.length ? `<div class="chips">${yt.hashtags.map((h) => `<span class="chip click" data-copy="${esc(h.tag)}" title="Copier">${esc(h.tag)} ×${h.n}</span>`).join('')}</div>` : ''}
+      ${yt.tags?.length ? `<div class="chips">${yt.tags.map((t) => `<span class="chip click" data-act="addTag" data-kw="${esc(t.tag)}" title="Ajouter aux tags">${esc(t.tag)} ×${t.n}</span>`).join('')}</div>` : ''}` : ''}
+    ${web ? `<div class="small"><b>Web (recherche Google par Gemini)</b> ${esc(web.notes || '')}</div>
+      ${web.keywords?.length ? `<div class="chips">${web.keywords.map((k) => `<span class="chip click" data-kwseed="${esc(k)}" title="Analyser ce mot-clé">${esc(k)}</span>`).join('')}</div>` : ''}
+      ${web.hashtags?.length ? `<div class="chips">${web.hashtags.map((h) => `<span class="chip click" data-copy="${esc(h)}" title="Copier">${esc(h)}</span>`).join('')}</div>` : ''}
+      ${web.sources?.length ? `<div class="tiny muted">Sources : ${web.sources.map((x) => `<a href="${esc(x.uri)}" target="_blank" rel="noopener">${esc(x.title || 'lien')}</a>`).join(' · ')}</div>` : ''}` : ''}
+    <div class="tiny muted">Gemini n'utilise une tendance que si elle correspond vraiment à la chanson (règle YouTube sur les métadonnées trompeuses).</div>
   </details>`;
 }
 
@@ -293,7 +365,11 @@ function keywordsHtml(p) {
   const kw = p.keywords;
   const c = p.competition;
   if (!kw?.items?.length && !c) return '';
+  const loc = kw?.locale;
   return `<details class="box"><summary>🔑 Mots-clés réels — principal : « ${esc(p.seo.mainKeyword)} »</summary>
+    ${loc ? `<div class="tiny muted">Recherches YouTube en « ${esc(loc.hl)} » · pays : ${esc((loc.countries || [loc.gl]).filter(Boolean).join(', ') || '—')}</div>` : ''}
+    ${p.seo.keywordStrategy ? `<div class="small">🎯 ${esc(p.seo.keywordStrategy)}</div>` : ''}
+    ${kw?.compared?.length > 1 ? `<div class="small">⚖️ Comparés : ${kw.compared.map((x) => `« ${esc(x.kw)} » ${badge(x.overall)}`).join(' · ')}</div>` : ''}
     ${c ? `<div class="row small"><span>Demande ${badge(c.demand)}</span><span>Concurrence ${badge(100 - c.competition)}</span><span>Score ${badge(c.overall)}</span><span class="muted">vues médianes ${F.num(c.medianViews)} · abonnés médians ${F.num(c.medianSubs)}</span></div>` : ''}
     <table><tr><th>Recherche YouTube</th><th style="width:90px">Popularité</th><th></th></tr>
     ${(kw?.items || []).slice(0, 20).map((k) => `<tr><td>${esc(k.kw)}</td><td>${bar(k.popularity)}</td><td class="num"><button class="small" data-act="addTag" data-kw="${esc(k.kw)}" title="Ajouter aux tags">+ tag</button></td></tr>`).join('')}</table>
@@ -314,8 +390,10 @@ function renderResult() {
       <div id="scoreHead">${head.html}</div>
       ${s.audienceInsight ? `<div class="small">🧠 <b>Psychologie du public :</b> ${esc(s.audienceInsight)}</div>` : ''}
     </div>
+    ${pack.warnings?.length ? `<div class="note small">ℹ️ ${pack.warnings.map(esc).join('<br>')}</div>` : ''}
     ${analysisHtml(pack.analysis, pack)}
     ${keywordsHtml(pack)}
+    ${trendsHtml(pack)}
     <div class="box">
       <div class="row"><h2>🏆 Titres</h2><span class="sp"></span><span class="muted tiny">cliquez pour choisir</span></div>
       <div id="titles">${s.titles.map((t, i) => `<div class="item tt" data-act="pickTitle" data-i="${i}" ${t.text === edit.title ? 'style="outline:2px solid var(--good)"' : ''}>
@@ -337,7 +415,7 @@ function renderResult() {
     </div>
     <div class="box">
       <div class="row"><h3># Hashtags</h3><span class="chips">${s.hashtags.map((h) => `<span class="chip">${esc(h)}</span>`).join('')}</span><span class="sp"></span><button class="small" data-act="copyHashtags">📋</button></div>
-      ${s.chapters?.length ? `<details><summary class="small">⏱️ Timeline / chapitres (${s.chapters.length}) — incluse dans la description</summary><div class="small">${s.chapters.map((c) => `${F.dur(c.t)} ${esc(c.label)}`).join('<br>')}</div></details>` : '<div class="small muted">⏱️ Pas de chapitres (vidéo trop courte ou moins de 3 parties de 10 s).</div>'}
+      ${s.chapters?.length ? `<details><summary class="small">⏱️ Timeline / chapitres (${s.chapters.length}) — incluse dans la description</summary><div class="small">${s.chapters.map((c) => `${F.ts(c.t)} ${esc(c.label)}`).join('<br>')}</div></details>` : '<div class="small muted">⏱️ Pas de chapitres (vidéo trop courte ou moins de 3 parties de 10 s).</div>'}
       ${s.pinnedComment ? `<div class="small"><b>💬 Commentaire à épingler :</b> ${esc(s.pinnedComment)} <button class="small ghost" data-act="copyPinned">📋</button></div>` : ''}
       ${s.thumbnail ? `<details><summary class="small">🖼️ Miniature</summary><div class="small">${(s.thumbnail.texts || []).map((t) => `<span class="chip">${esc(t)}</span>`).join(' ')}<p>${esc(s.thumbnail.concept || '')}</p>${s.thumbnail.prompt ? `<div class="lyrics">${esc(s.thumbnail.prompt)}</div><button class="small" data-act="copyThumb">Copier le prompt d'image</button>` : ''}</div></details>` : ''}
       ${s.short?.title ? `<details><summary class="small">📱 Short tiré de la vidéo</summary><div class="small"><b>${esc(s.short.title)}</b><p>${esc(s.short.description || '')}</p></div></details>` : ''}
@@ -729,6 +807,11 @@ function bind() {
   $('#compIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') addCompetitor(); });
   $('#compRefresh').addEventListener('click', () => refreshCompetitors().catch((e) => { $('#compVideos').innerHTML = `<div class="alert small">⚠️ ${esc(e.message)}</div>`; }));
   $('#trGo').addEventListener('click', loadTrends);
+  $('#gSave').addEventListener('click', saveGeminiKey);
+  $('#ySave').addEventListener('click', saveYtKey);
+  $('#mMain').addEventListener('change', async (e) => { settings = await setSettings({ modelMain: e.target.value }); renderFooter(); });
+  $('#mFast').addEventListener('change', async (e) => { settings = await setSettings({ modelFast: e.target.value }); });
+  $('#webChk').addEventListener('change', async (e) => { settings = await setSettings({ webTrends: e.target.checked }); });
 
   const refreshSoon = debounce(refreshContext, 300);
   chrome.tabs.onActivated.addListener(refreshSoon);

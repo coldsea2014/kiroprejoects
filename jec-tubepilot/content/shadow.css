@@ -1,0 +1,163 @@
+/* JEC TubePilot — style des cartes intégrées à YouTube / YouTube Studio (Shadow DOM) */
+:host {
+  --bg: #ffffff;
+  --bg2: #f4f5f7;
+  --fg: #0f0f0f;
+  --muted: #606060;
+  --line: #e2e3e6;
+  --accent: #7c3aed;
+  --accent2: #ec4899;
+  --good: #16a34a;
+  --mid: #d97706;
+  --bad: #dc2626;
+  --chip: #ede9fe;
+  --chipfg: #4c1d95;
+  all: initial;
+  display: block;
+  font: 13px/1.45 Roboto, "YouTube Sans", "Segoe UI", Arial, sans-serif;
+  color: var(--fg);
+}
+:host(.dark) {
+  --bg: #1f1f1f;
+  --bg2: #282828;
+  --fg: #f1f1f1;
+  --muted: #aaaaaa;
+  --line: #3a3a3a;
+  --chip: #2e1f4f;
+  --chipfg: #ddd6fe;
+}
+* { box-sizing: border-box; }
+.tp-root { color: var(--fg); }
+.tp-card {
+  margin: 10px 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.tp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: linear-gradient(90deg, rgba(124, 58, 237, .14), rgba(236, 72, 153, .10));
+  border-bottom: 1px solid var(--line);
+  cursor: default;
+}
+.tp-head b { font-size: 13px; }
+.tp-logo { width: 18px; height: 18px; border-radius: 4px; vertical-align: middle; }
+.tp-sp { flex: 1; }
+.tp-body { padding: 10px; display: grid; gap: 10px; }
+.tp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tp-muted { color: var(--muted); font-size: 12px; }
+.tp-small { font-size: 11.5px; }
+.tp-hidden { display: none !important; }
+button, .tp-btn {
+  font: inherit;
+  font-size: 12.5px;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  color: var(--fg);
+  border-radius: 999px;
+  padding: 5px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+button:hover { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+button.tp-primary { background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; border: 0; font-weight: 600; }
+button.tp-ghost { background: transparent; border-color: transparent; padding: 3px 6px; }
+button.tp-link { background: none; border: 0; color: var(--accent); padding: 0; text-decoration: underline; }
+.tp-sc {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  color: #fff;
+}
+.tp-good { background: var(--good); }
+.tp-mid { background: var(--mid); }
+.tp-bad { background: var(--bad); }
+.tp-score-big { font-size: 15px; height: 24px; min-width: 38px; }
+.tp-sub { display: flex; gap: 10px; font-size: 11.5px; color: var(--muted); }
+.tp-sub span b { color: var(--fg); }
+.tp-titles { display: grid; gap: 4px; }
+.tp-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--bg2);
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.tp-title:hover { border-color: var(--accent); }
+.tp-title .tp-t { flex: 1; min-width: 0; }
+.tp-title .tp-hook { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.tp-title.tp-applied { border-color: var(--good); }
+.tp-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.tp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--chipfg);
+  font-size: 12px;
+  cursor: pointer;
+  border: 0;
+}
+.tp-kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12.5px; }
+.tp-kv dt { color: var(--muted); }
+.tp-kv dd { margin: 0; }
+.tp-progress { display: grid; gap: 6px; }
+.tp-bar { height: 6px; border-radius: 3px; background: var(--bg2); overflow: hidden; }
+.tp-bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .3s; }
+.tp-bar.tp-indet > i { width: 35% !important; animation: tp-slide 1.2s infinite ease-in-out; }
+@keyframes tp-slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+.tp-steps { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11.5px; color: var(--muted); }
+.tp-steps .on { color: var(--fg); font-weight: 600; }
+.tp-steps .ok { color: var(--good); }
+.tp-alert { padding: 8px 10px; border-radius: 8px; background: rgba(220, 38, 38, .1); border: 1px solid rgba(220, 38, 38, .35); font-size: 12.5px; }
+.tp-note { padding: 8px 10px; border-radius: 8px; background: rgba(124, 58, 237, .08); border: 1px solid rgba(124, 58, 237, .25); font-size: 12.5px; }
+.tp-issues { margin: 0; padding-left: 18px; font-size: 12px; }
+.tp-issues li { margin: 2px 0; }
+.tp-issues .error { color: var(--bad); }
+.tp-issues .warn { color: var(--mid); }
+.tp-issues a { color: var(--accent); }
+details > summary { cursor: pointer; font-weight: 600; font-size: 12.5px; }
+.tp-toast {
+  background: #111;
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .35);
+  font-size: 13px;
+  max-width: 520px;
+}
+/* suggestions de tags sous le champ Tags */
+.tp-sug {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
+  padding: 6px;
+  min-width: 280px;
+  max-width: 420px;
+}
+.tp-sug .tp-sug-h { font-size: 11px; color: var(--muted); padding: 2px 6px 6px; display: flex; gap: 6px; align-items: center; }
+.tp-sug button { display: flex; width: 100%; gap: 8px; align-items: center; border-radius: 6px; border: 0; background: transparent; text-align: left; padding: 5px 6px; }
+.tp-sug button:hover { background: var(--bg2); }
+/* carte page vidéo */
+.tp-watch { margin: 0 0 12px; }
+.tp-stat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tp-stat div { background: var(--bg2); border-radius: 8px; padding: 6px 8px; }
+.tp-stat b { display: block; font-size: 14px; }
+.tp-stat span { font-size: 11px; color: var(--muted); }

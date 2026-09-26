@@ -69,3 +69,9 @@ MONGO_URI=mongodb://localhost:27017/communechat
 JWT_SECRET=change-me-in-production
 CLIENT_URL=http://localhost:5173
 ```
+
+---
+
+## Autre projet du dépôt : JEC TubePilot (extension Chrome)
+
+Le dossier [`jec-tubepilot/`](jec-tubepilot/README.md) contient une extension Chrome de SEO YouTube pilotée par Gemini. Gemini écoute et regarde la vidéo importée dans Studio. L'extension propose des titres à forte accroche, une description avec timeline, des tags, des mots-clés réels et une analyse des concurrents, puis insère le tout automatiquement dans YouTube Studio.

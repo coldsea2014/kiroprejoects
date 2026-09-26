@@ -1,0 +1,10 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>YouTube (maquette de test)</title></head>
+<body style="background:#fff">
+  <ytd-watch-flexy><div id="columns"><div id="primary"><div id="movie_player">lecteur</div></div><div id="secondary"><div id="secondary-inner" style="width:400px;min-height:50px"><div>suggestions</div></div></div></div></ytd-watch-flexy>
+<script>
+  document.getElementById('movie_player').getPlayerResponse = () => ({
+    videoDetails: { videoId: 'zyxwvutsrqp', title: 'Chaabi Nayda 2026 🔥 أجمل أغاني الأعراس', keywords: ['chaabi', 'nayda', 'اغاني اعراس'], viewCount: '152300', lengthSeconds: '245', channelId: 'UCzzzzzzzzzzzzzzzzzzzzzz', author: 'Test', shortDescription: 'Chaabi mariage\n0:00 Intro\n1:00 Refrain\n2:00 Fin\n#chaabi #nayda' },
+    microformat: { playerMicroformatRenderer: { publishDate: new Date(Date.now() - 48 * 3600e3).toISOString(), category: 'Music' } }
+  });
+</script></body></html>

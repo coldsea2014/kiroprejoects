@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>YouTube Studio (maquette de test)</title>
+<style>
+  body { font-family: Roboto, Arial; background: #282828; color: #eee; margin: 0; }
+  ytcp-uploads-dialog { display: block; width: 900px; margin: 20px auto; background: #1f1f1f; padding: 20px; }
+  #textbox { min-height: 24px; border: 1px solid #555; padding: 6px; white-space: pre-wrap; }
+  ytcp-chip { display: inline-block; background: #444; margin: 2px; padding: 2px 6px; border-radius: 8px; }
+  .hidden { display: none; }
+</style></head>
+<body>
+  <a href="/channel/UCabcdefghijklmnopqrstuv/videos">Chaîne</a>
+  <input type="file" id="picker" name="Filedata">
+  <ytcp-uploads-dialog class="hidden">
+    <ytcp-video-metadata-editor>
+      <ytcp-video-title><ytcp-social-suggestions-textbox id="title-textarea"><div id="textbox" contenteditable="true"></div></ytcp-social-suggestions-textbox></ytcp-video-title>
+      <ytcp-video-description><ytcp-social-suggestions-textbox id="description-textarea"><div id="textbox" contenteditable="true"></div></ytcp-social-suggestions-textbox></ytcp-video-description>
+      <button id="toggle-button">Afficher plus</button>
+      <div id="more" class="hidden">
+        <ytcp-form-input-container id="tags-container"><ytcp-free-text-chip-bar><div id="chips"></div><input id="text-input"></ytcp-free-text-chip-bar></ytcp-form-input-container>
+      </div>
+    </ytcp-video-metadata-editor>
+    <ytcp-video-info><div class="label">Lien de la vidéo</div><a class="value" id="link" href="https://youtu.be/abcdefghijk">https://youtu.be/abcdefghijk</a>
+      <div class="label">Nom du fichier</div><div class="value" id="fname"></div></ytcp-video-info>
+  </ytcp-uploads-dialog>
+<script>
+  // Comportement minimal de Studio : fenêtre d'import, titre = nom du fichier, tags en « chips »
+  const dlg = document.querySelector('ytcp-uploads-dialog');
+  document.getElementById('picker').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    dlg.classList.remove('hidden');
+    document.getElementById('fname').textContent = f.name;
+    document.querySelector('#title-textarea #textbox').textContent = f.name.replace(/\.[^.]+$/, '');
+  });
+  document.getElementById('toggle-button').addEventListener('click', () => document.getElementById('more').classList.remove('hidden'));
+  const input = document.getElementById('text-input');
+  const addChip = (t) => { t = t.trim(); if (!t) return; const c = document.createElement('ytcp-chip'); c.innerHTML = '<span id="chip-text"></span>'; c.firstChild.textContent = t; document.getElementById('chips').appendChild(c); };
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { addChip(input.value); input.value = ''; } });
+  input.addEventListener('input', () => { if (input.value.includes(',')) { input.value.split(',').slice(0, -1).forEach(addChip); input.value = input.value.split(',').pop(); } });
+</script>
+</body>
+</html>

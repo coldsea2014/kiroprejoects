@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JEC TubePilot</title>
+  <link rel="stylesheet" href="../lib/ui.css">
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header class="top">
+    <img src="../icons/icon32.png" alt="" width="22" height="22">
+    <b>JEC TubePilot</b>
+    <span class="sp"></span>
+    <select id="profile" title="Profil de chaîne utilisé"></select>
+    <button id="openOptions" class="ghost" title="Réglages">⚙️</button>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="video" class="on">🎬 Vidéo</button>
+    <button data-tab="keywords">🔑 Mots-clés</button>
+    <button data-tab="competitors">🥊 Concurrents</button>
+    <button data-tab="trends">🔥 Tendances</button>
+    <button data-tab="history">🗂️</button>
+  </nav>
+
+  <main>
+    <!-- ================= VIDÉO ================= -->
+    <section id="tab-video" class="tab on">
+      <div id="ctxBox" class="note small"></div>
+      <div id="keyWarn" class="alert small hidden">🔑 Ajoutez votre <b>clé Gemini gratuite</b> (aistudio.google.com/apikey) pour que Gemini écoute et regarde vos vidéos, même privées. <button class="link" data-open-options>Ouvrir les réglages</button></div>
+
+      <div class="box">
+        <div class="seg" id="srcSeg">
+          <label class="chk"><input type="radio" name="src" value="studio" checked> Vidéo importée dans Studio</label>
+          <label class="chk"><input type="radio" name="src" value="file"> Fichier de l'ordinateur</label>
+          <label class="chk"><input type="radio" name="src" value="url"> Lien YouTube public</label>
+          <label class="chk"><input type="radio" name="src" value="express"> Express (sans écoute)</label>
+        </div>
+        <div id="srcFile" class="hidden"><input type="file" id="fileIn" accept="video/*,audio/*"></div>
+        <div id="srcUrl" class="hidden"><input id="urlIn" type="url" placeholder="https://www.youtube.com/watch?v=…"></div>
+        <details>
+          <summary class="small">Options et indications pour Gemini</summary>
+          <div class="grid2">
+            <label>Mot-clé principal (optionnel)<input id="kwIn" placeholder="ex. اغاني مغربية حزينة"></label>
+            <label>Média envoyé à Gemini
+              <select id="mediaMode">
+                <option value="auto">Auto (vidéo, ou audio si très longue)</option>
+                <option value="audio">Audio seul (rapide, économique)</option>
+                <option value="video">Vidéo complète (image + son)</option>
+              </select>
+            </label>
+          </div>
+          <label>Notes (sujet, public, sortie…)<textarea id="notesIn" rows="2" placeholder="ex. chanson d'amour pour les mariages, voix IA Suno, sortie vendredi"></textarea></label>
+          <label>Paroles (si vous les avez)<textarea id="lyricsIn" rows="3"></textarea></label>
+          <label class="chk"><input type="checkbox" id="lyricsChk"> Transcrire les paroles entendues</label>
+          <label class="chk"><input type="checkbox" id="compChk"> Analyser les concurrents du mot-clé (clé YouTube, ~102 unités)</label>
+          <label class="chk"><input type="checkbox" id="reChk"> Réécouter même si la vidéo a déjà été analysée</label>
+        </details>
+        <button id="runBtn" class="primary big">🚀 Analyser la vidéo & générer le SEO</button>
+        <div id="progress" class="hidden"></div>
+        <div id="runErr" class="alert small hidden"></div>
+      </div>
+
+      <details class="box" id="manualBox">
+        <summary>💎 Utiliser mon abonnement Gemini Pro (sans clé API)</summary>
+        <ol class="small">
+          <li>Cliquez « Copier le prompt ».</li>
+          <li>Ouvrez Gemini, <b>joignez votre vidéo ou le MP3</b>, choisissez le modèle le plus puissant et collez le prompt.</li>
+          <li>Copiez toute la réponse de Gemini et collez-la ci-dessous.</li>
+        </ol>
+        <div class="row">
+          <button id="copyPrompt">📋 Copier le prompt</button>
+          <button id="openGemini">↗ Ouvrir Gemini</button>
+        </div>
+        <textarea id="manualIn" rows="4" placeholder="Collez ici la réponse de Gemini (le bloc JSON)"></textarea>
+        <button id="manualApply">✅ Utiliser cette réponse</button>
+      </details>
+
+      <div id="result"></div>
+    </section>
+
+    <!-- ================= MOTS-CLÉS ================= -->
+    <section id="tab-keywords" class="tab">
+      <div class="box">
+        <div class="row">
+          <input id="kwSeed" placeholder="ex. أغاني مغربية, chaabi mariage, lofi arabic">
+          <button id="kwGo" class="primary">Rechercher</button>
+        </div>
+        <div class="grid3 small">
+          <label>Langue<select id="kwHl"></select></label>
+          <label>Pays<select id="kwGl"></select></label>
+          <label class="chk"><input type="checkbox" id="kwDeep" checked> Recherche A→Z</label>
+        </div>
+        <div class="muted tiny">Source : suggestions réelles de la barre de recherche YouTube. La popularité est un indice (0-100), pas un nombre de recherches — aucun outil n'a accès au vrai volume YouTube.</div>
+      </div>
+      <div id="kwProgress"></div>
+      <div id="kwResults"></div>
+      <div id="kwDetail"></div>
+      <div class="box" id="basketBox">
+        <div class="row"><b>🧺 Panier de tags</b><span id="basketInfo" class="muted small"></span><span class="sp"></span>
+          <button class="small" id="basketCopy">Copier</button>
+          <button class="small" id="basketInsert">➕ Ajouter dans Studio</button>
+          <button class="small ghost" id="basketClear">Vider</button>
+        </div>
+        <div id="basketChips" class="chips"></div>
+      </div>
+    </section>
+
+    <!-- ================= CONCURRENTS ================= -->
+    <section id="tab-competitors" class="tab">
+      <div class="box">
+        <div class="row">
+          <input id="compIn" placeholder="@chaîne, lien de chaîne ou ID UC…">
+          <button id="compAdd">➕ Suivre</button>
+        </div>
+        <div id="compList"></div>
+      </div>
+      <div class="box">
+        <div class="row"><b>Vidéos récentes qui surperforment</b><span class="sp"></span><button id="compRefresh" class="small">🔄 Actualiser</button></div>
+        <div id="compVideos" class="small muted">Ajoutez des chaînes concurrentes puis « Actualiser » (3 unités de quota par chaîne).</div>
+      </div>
+      <div id="compInsights"></div>
+    </section>
+
+    <!-- ================= TENDANCES ================= -->
+    <section id="tab-trends" class="tab">
+      <div class="box">
+        <div class="grid3 small">
+          <label>Pays<select id="trGl"></select></label>
+          <label>Catégorie
+            <select id="trCat">
+              <option value="10">Musique</option>
+              <option value="0">Toutes</option>
+              <option value="24">Divertissement</option>
+              <option value="22">Vlogs / blogs</option>
+              <option value="20">Jeux vidéo</option>
+              <option value="27">Éducation</option>
+              <option value="17">Sport</option>
+              <option value="23">Humour</option>
+            </select>
+          </label>
+          <button id="trGo" class="primary">Charger</button>
+        </div>
+      </div>
+      <div id="trResults"></div>
+    </section>
+
+    <!-- ================= HISTORIQUE ================= -->
+    <section id="tab-history" class="tab">
+      <div id="histList"></div>
+    </section>
+  </main>
+
+  <footer id="status" class="tiny muted"></footer>
+  <script type="module" src="sidepanel.js"></script>
+</body>
+</html>

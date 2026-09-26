@@ -1,0 +1,12 @@
+/* JEC TubePilot — page de réglages */
+body { padding: 24px 16px 60px; }
+.wrap { max-width: 860px; margin: 0 auto; display: grid; gap: 14px; }
+h1 { font-size: 22px; }
+h2 { font-size: 15px; }
+p { margin: 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+.profile { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; background: var(--bg2); }
+.profile + .profile { margin-top: 10px; }
+.btnlike { display: inline-flex; align-items: center; border: 1px solid var(--line); background: var(--bg2); border-radius: 999px; padding: 6px 12px; cursor: pointer; color: var(--fg); font-size: 13px; }
+.saved { position: fixed; right: 18px; bottom: 18px; background: var(--good); color: #fff; padding: 8px 14px; border-radius: 10px; font-weight: 600; }

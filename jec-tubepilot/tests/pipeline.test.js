@@ -1,0 +1,107 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { installChrome } from './chrome-mock.js';
+
+const store = installChrome();
+const { setSettings, getPack, listPacks } = await import('../lib/storage.js');
+const G = await import('../lib/gemini.js');
+const { run, fromManual } = await import('../lib/pipeline.js');
+const { ANALYSIS_SCHEMA, SEO_SCHEMA } = await import('../lib/prompts.js');
+
+const ANALYSIS = {
+  content_type: 'music', summary: 'Chanson chaâbi festive.', language: 'Arabe — darija marocaine', language_code: 'ar',
+  music: { primary_genre: 'chaabi', regional_style: 'Maroc', bpm: 118, time_signature: '6/8', mood: ['festif'], energy: 8, instruments: ['violon', 'darbouka'], vocals: 'voix masculine', hook_line: 'قولها ليا', hook_start: 32, song_title_guess: 'قولها ليا' },
+  timeline: [{ start: 0, label: 'Intro violon' }, { start: 32, label: 'Refrain' }, { start: 70, label: 'Couplet 2' }, { start: 150, label: 'Final' }],
+  search_queries: ['شعبي مغربي', 'اغاني مغربية'], duration_seconds: 185, confidence: 0.86
+};
+const SEO = {
+  main_keyword: 'شعبي مغربي', secondary_keywords: ['اغاني مغربية'], audience_insight: 'Public festif.',
+  titles: [{ text: 'قولها ليا 🔥 شعبي مغربي نايضة للأعراس', hook_type: 'moment d\'écoute' }, { text: 'شعبي مغربي 2026 | قولها ليا', hook_type: 'mot-clé' }],
+  ab_titles: ['a', 'b', 'c'], description_intro: 'قولها ليا — شعبي مغربي نايضة', description_body: 'أغنية شعبية مغربية للأعراس والحفلات.', cta: 'اشترك 🔔',
+  chapters: [{ start: 0, label: 'مقدمة' }, { start: 32, label: 'اللازمة' }, { start: 70, label: 'الكوبلي 2' }],
+  tags: ['شعبي مغربي', 'قولها ليا', 'chaabi marocain'], hashtags: ['#شعبي', '#قولها_ليا', '#chaabi'], pinned_comment: 'فين غادي تسمعوها؟', thumbnail: { texts: ['نايضة'], concept: 'fête', prompt: 'wedding party' }
+};
+
+const calls = [];
+globalThis.fetch = async (url, init = {}) => {
+  url = String(url);
+  calls.push({ url, body: init.body ? JSON.parse(init.body) : null, headers: init.headers || {} });
+  const json = (obj, status = 200) => ({ ok: status < 400, status, statusText: '', headers: new Map(), json: async () => obj, text: async () => JSON.stringify(obj) });
+  if (url.includes('suggestqueries.google.com')) {
+    const q = new URL(url).searchParams.get('q');
+    return json([q, [q, q + ' 2026', q + ' نايضة', q + ' اعراس']]);
+  }
+  if (url.includes(':generateContent')) {
+    const body = JSON.parse(init.body);
+    assert.equal(init.headers['x-goog-api-key'], 'AIzaTEST');
+    const hasMedia = body.contents[0].parts.some((p) => p.fileData);
+    const out = hasMedia ? ANALYSIS : SEO;
+    return json({ candidates: [{ content: { parts: [{ text: 'réflexion', thought: true }, { text: JSON.stringify(out) }] }, finishReason: 'STOP' }], usageMetadata: { totalTokenCount: 1234 } });
+  }
+  return json({ error: { message: 'inconnu' } }, 404);
+};
+
+await setSettings({ geminiKey: 'AIzaTEST', modelMain: 'gemini-9-pro', modelFast: 'gemini-9-flash', competitorLookup: false, profiles: [{ id: 'default', name: 'Test', languages: 'ar, fr', country: 'MA', niche: 'Musique marocaine', signature: 'Instagram : https://instagram.com/test' }] });
+
+test('chaîne complète avec un lien YouTube public', async () => {
+  const steps = [];
+  const pack = await run({ youtubeUrl: 'https://www.youtube.com/watch?v=abcdefghijk', ctx: { videoId: 'abcdefghijk' }, onProgress: (p) => steps.push(p.step) });
+  assert.deepEqual([...new Set(steps)], ['analyze', 'keywords', 'seo', 'done']);
+  const gen = calls.filter((c) => c.url.includes(':generateContent'));
+  assert.equal(gen.length, 2);
+  assert.equal(gen[0].body.contents[0].parts[0].fileData.fileUri, 'https://www.youtube.com/watch?v=abcdefghijk');
+  assert.equal(gen[0].body.generationConfig.responseMimeType, 'application/json');
+  assert.equal(gen[0].body.generationConfig.responseSchema.type, 'OBJECT');
+  assert.match(gen[1].body.contents[0].parts[0].text, /RECHERCHES RÉELLES SUR YOUTUBE/);
+  assert.equal(pack.key, 'vid:abcdefghijk');
+  assert.equal(pack.analysis.music.primary_genre, 'chaabi');
+  assert.equal(pack.seo.mainKeyword, 'شعبي مغربي');
+  assert.equal(pack.seo.chapters.length, 3);
+  assert.match(pack.seo.description, /0:32 اللازمة/);
+  assert.match(pack.seo.description, /instagram\.com\/test/);
+  assert.ok(pack.seo.tags.includes('قولها ليا'));
+  assert.ok(pack.keywords.items.length > 0);
+  assert.ok(await getPack('vid:abcdefghijk'));
+  assert.equal((await listPacks())[0].key, 'vid:abcdefghijk');
+});
+
+test('régénération : l\'écoute est réutilisée (pas de nouvel envoi du média)', async () => {
+  calls.length = 0;
+  const pack = await run({ ctx: { packKey: 'vid:abcdefghijk' }, options: { mode: 'express' } });
+  const gen = calls.filter((c) => c.url.includes(':generateContent'));
+  assert.equal(gen.length, 1);
+  assert.ok(!gen[0].body.contents[0].parts.some((p) => p.fileData));
+  assert.match(gen[0].body.contents[0].parts[0].text, /ANALYSE DE LA VIDÉO PAR ÉCOUTE/);
+  assert.equal(pack.analysis.music.hook_line, 'قولها ليا');
+});
+
+test('mode abonnement : réponse collée', async () => {
+  const pack = await fromManual({ text: '```json\n' + JSON.stringify({ analysis: ANALYSIS, seo: SEO }) + '\n```', ctx: { fileName: 'song.mp4', fileSize: 42 } });
+  assert.equal(pack.key, 'file:song.mp4:42');
+  assert.equal(pack.seo.titles.length, 2);
+});
+
+test('gemini : erreurs lisibles et choix des modèles', async () => {
+  const saved = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, status: 429, statusText: '', json: async () => ({ error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'quota', details: [{ '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] }] } }) });
+  await assert.rejects(G.generate({ key: 'k', model: 'gemini-9-pro', parts: [{ text: 'x' }] }), /Quota journalier/);
+  globalThis.fetch = saved;
+  const r = G.rankModels([{ id: 'gemini-2.5-pro' }, { id: 'gemini-3-pro-preview' }, { id: 'gemini-2.5-flash' }, { id: 'gemini-2.5-flash-lite' }, { id: 'gemini-flash-latest' }, { id: 'gemini-embedding-001' }]);
+  assert.equal(r.pro, 'gemini-3-pro-preview');
+  assert.equal(r.flash, 'gemini-2.5-flash');
+  assert.equal(r.lite, 'gemini-2.5-flash-lite');
+  assert.deepEqual(G.parseJSONLoose('bla ```json\n{"a":1,}\n``` bla'), { a: 1 });
+});
+
+test('schémas : types en majuscules et champs requis existants', () => {
+  const walk = (s) => {
+    assert.match(s.type, /^[A-Z]+$/);
+    if (s.type === 'OBJECT') {
+      (s.required || []).forEach((k) => assert.ok(k in s.properties, 'requis inconnu : ' + k));
+      Object.values(s.properties).forEach(walk);
+    }
+    if (s.type === 'ARRAY') walk(s.items);
+  };
+  walk(ANALYSIS_SCHEMA);
+  walk(SEO_SCHEMA);
+});

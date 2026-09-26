@@ -1,0 +1,13 @@
+{
+  "name": "jec-tubepilot",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Extension Chrome : SEO YouTube piloté par Gemini (écoute des vidéos, titres, description avec timeline, tags, mots-clés, concurrents).",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node tools/check.mjs",
+    "icons": "node tools/make-icons.mjs",
+    "zip": "node tools/zip.mjs"
+  }
+}

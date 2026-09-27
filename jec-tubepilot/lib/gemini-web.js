@@ -1,4 +1,5 @@
-// JEC TubePilot — Gemini Pro par votre abonnement (gemini.google.com) : ouvre Gemini dans une petite fenêtre à part,
+// TubePilot — Gemini Pro par votre abonnement (gemini.google.com) : ouvre Gemini dans une petite fenêtre à part,
+import { t } from './lang.js';
 // y envoie la consigne (et l'audio), récupère la réponse, puis referme la fenêtre. Aucune clé API.
 import './jsonparse.js';
 
@@ -86,7 +87,7 @@ export async function ask(session, { prompt, attachment = null, attachName = '',
       const onMsg = (m) => {
         if (!m || m.id !== id) return false;
         if (m.type === 'gw:status') onStatus?.(m);
-        else if (m.type === 'gw:front') { showSession(session); onStatus?.({ stage: 'front', why: m.why, text: m.why === 'login' ? 'Connectez-vous à Gemini dans la fenêtre ouverte' : 'Gemini a besoin de vous dans sa fenêtre' }); }
+        else if (m.type === 'gw:front') { showSession(session); onStatus?.({ stage: 'front', why: m.why, text: m.why === 'login' ? t('gw.needLogin') : t('gw.needYou') }); }
         else if (m.type === 'gw:error') done(reject, new GeminiWebError(m.error, 'page'));
         else if (m.type === 'gw:done') {
           const { obj, cut } = globalThis.TPJson.parse(m.text, keys);
@@ -95,13 +96,13 @@ export async function ask(session, { prompt, attachment = null, attachName = '',
         }
         return false;
       };
-      const onClosed = (winId) => { if (session.mode === 'popup' && winId === session.winId) done(reject, new GeminiWebError('La fenêtre Gemini a été fermée avant la fin.', 'closed')); };
+      const onClosed = (winId) => { if (session.mode === 'popup' && winId === session.winId) done(reject, new GeminiWebError(t('gw.closed'), 'closed')); };
       chrome.runtime.onMessage.addListener(onMsg);
       chrome.windows.onRemoved?.addListener(onClosed);
-      const timer = setTimeout(() => done(reject, new GeminiWebError('Gemini ne répond pas (délai dépassé).', 'timeout')), timeoutMs);
+      const timer = setTimeout(() => done(reject, new GeminiWebError(t('gem.timeout'), 'timeout')), timeoutMs);
       signal?.addEventListener('abort', () => {
         chrome.tabs.sendMessage(session.tabId, { type: 'gw:cancel', id }).catch(() => {});
-        done(reject, new GeminiWebError('Annulé.', 'abort'));
+        done(reject, new GeminiWebError(t('common.cancelled'), 'abort'));
       }, { once: true });
       // la page Gemini peut mettre du temps à charger : on renvoie la demande jusqu'à ce que le script de la page réponde
       (async () => {
@@ -112,7 +113,7 @@ export async function ask(session, { prompt, attachment = null, attachName = '',
           } catch (e) { /* page pas encore prête */ }
           await sleep(1000);
         }
-        if (!settled) { showSession(session); done(reject, new GeminiWebError('Gemini ne s\'ouvre pas : vérifiez que vous êtes connecté à gemini.google.com.', 'open')); }
+        if (!settled) { showSession(session); done(reject, new GeminiWebError(t('gw.openFailed'), 'open')); }
       })();
     });
   } finally {

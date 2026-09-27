@@ -1,4 +1,4 @@
-// JEC TubePilot — utilitaires de formatage partagés (content scripts, pages, service worker, tests Node)
+// TubePilot — utilitaires de formatage partagés (content scripts, pages, service worker, tests Node)
 (function (g) {
   'use strict';
 
@@ -8,15 +8,19 @@
   const uniq = (arr) => [...new Set(arr)];
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // 1 234 → « 1,2 k » ; 3 400 000 → « 3,4 M »
+  // locale of the interface (en-US, fr-FR, ar with Latin digits)
+  const loc = () => (g.TPI18n?.locale?.() || 'en-US');
+  const cache = new Map();
+  const intl = (key, make) => { const k = key + '|' + loc(); if (!cache.has(k)) { try { cache.set(k, make(loc())); } catch (e) { cache.set(k, null); } } return cache.get(k); };
+
+  // 1234 → « 1.2K » (en) / « 1,2 k » (fr) / « 1.2 ألف » (ar)
   function num(n) {
     n = Number(n) || 0;
+    const nf = intl('num', (l) => new Intl.NumberFormat(l, { notation: 'compact', maximumFractionDigits: 1 }));
+    if (nf) return nf.format(n);
     const a = Math.abs(n);
-    const f = (v, u) => (v >= 100 ? Math.round(v) : Math.round(v * 10) / 10).toString().replace('.', ',') + ' ' + u;
-    if (a >= 1e9) return f(n / 1e9, 'Md');
-    if (a >= 1e6) return f(n / 1e6, 'M');
-    if (a >= 1e3) return f(n / 1e3, 'k');
-    return String(Math.round(n));
+    const f = (v, u) => (v >= 100 ? Math.round(v) : Math.round(v * 10) / 10) + u;
+    return a >= 1e9 ? f(n / 1e9, 'B') : a >= 1e6 ? f(n / 1e6, 'M') : a >= 1e3 ? f(n / 1e3, 'K') : String(Math.round(n));
   }
 
   // secondes → « 3:07 » ou « 1:02:03 »
@@ -52,11 +56,9 @@
     const t = typeof date === 'number' ? date : Date.parse(date);
     if (!Number.isFinite(t)) return '';
     const s = Math.max(0, (Date.now() - t) / 1000);
-    if (s < 3600) return `il y a ${Math.max(1, Math.round(s / 60))} min`;
-    if (s < 86400) return `il y a ${Math.round(s / 3600)} h`;
-    if (s < 86400 * 30) return `il y a ${Math.round(s / 86400)} j`;
-    if (s < 86400 * 365) return `il y a ${Math.round(s / (86400 * 30))} mois`;
-    return `il y a ${Math.round((s / (86400 * 365)) * 10) / 10} an(s)`.replace('.', ',');
+    const [v, u] = s < 3600 ? [Math.max(1, Math.round(s / 60)), 'minute'] : s < 86400 ? [Math.round(s / 3600), 'hour'] : s < 86400 * 30 ? [Math.round(s / 86400), 'day'] : s < 86400 * 365 ? [Math.round(s / (86400 * 30)), 'month'] : [Math.round(s / (86400 * 365)), 'year'];
+    const rf = intl('ago', (l) => new Intl.RelativeTimeFormat(l, { numeric: 'always', style: 'short' }));
+    return rf ? rf.format(-v, u) : `${v} ${u}${v > 1 ? 's' : ''} ago`;
   }
 
   // vues par heure depuis la publication

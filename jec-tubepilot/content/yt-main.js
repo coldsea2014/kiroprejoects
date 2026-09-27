@@ -1,4 +1,4 @@
-// JEC TubePilot — lit les infos publiques de la vidéo affichée (tags, vues, date) depuis le lecteur YouTube de la page
+// TubePilot — lit les infos publiques de la vidéo affichée (tags, vues, date) depuis le lecteur YouTube de la page
 (function () {
   'use strict';
   if (window.__tpMain) return;

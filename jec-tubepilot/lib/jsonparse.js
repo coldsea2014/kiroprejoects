@@ -1,4 +1,4 @@
-// JEC TubePilot — lecture tolérante des réponses de Gemini (bloc de code, texte autour, réponse coupée, plusieurs JSON)
+// TubePilot — lecture tolérante des réponses de Gemini (bloc de code, texte autour, réponse coupée, plusieurs JSON)
 (function (g) {
   'use strict';
 

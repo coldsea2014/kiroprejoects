@@ -1,4 +1,5 @@
-// JEC TubePilot — client de l'API Gemini (Google AI Studio) : modèles, envoi de fichiers, génération JSON structurée
+// TubePilot — client de l'API Gemini (Google AI Studio) : modèles, envoi de fichiers, génération JSON structurée
+import { t } from './lang.js';
 const API = 'https://generativelanguage.googleapis.com';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -21,20 +22,18 @@ async function toError(res, model) {
   const msg = String(err.message || res.statusText || '');
   const details = err.details || [];
   const reason = details.map((d) => d.reason).find(Boolean) || err.status || '';
-  if (res.status === 400 && /API key not valid|API_KEY_INVALID/i.test(msg + reason)) return new GeminiError('Clé Gemini invalide : vérifiez-la dans Réglages (elle commence par « AIza »).', { status: 400, reason: 'key' });
-  if (res.status === 403) return new GeminiError('Clé Gemini refusée : activez « Generative Language API » pour ce projet ou retirez les restrictions de la clé.', { status: 403, reason: 'forbidden' });
-  if (res.status === 404) return new GeminiError(`Modèle « ${model || '?'} » introuvable : choisissez un autre modèle dans Réglages.`, { status: 404, reason: 'model' });
+  if (res.status === 400 && /API key not valid|API_KEY_INVALID/i.test(msg + reason)) return new GeminiError(t('gem.badKey'), { status: 400, reason: 'key' });
+  if (res.status === 403) return new GeminiError(t('gem.forbidden'), { status: 403, reason: 'forbidden' });
+  if (res.status === 404) return new GeminiError(t('gem.noModel', { model: model || '?' }), { status: 404, reason: 'model' });
   if (res.status === 429) {
     const retry = details.find((d) => /RetryInfo/.test(d['@type'] || ''))?.retryDelay || '';
     const quotaIds = details.flatMap((d) => (d.violations || []).map((v) => v.quotaId || '')).join(' ');
     const daily = /PerDay/i.test(quotaIds);
     const wait = parseFloat(retry) || 0;
-    return new GeminiError(daily
-      ? `Quota journalier Gemini atteint pour « ${model} ». Choisissez un modèle Flash dans Réglages, attendez demain, ou activez la facturation dans Google AI Studio.`
-      : `Trop de demandes à Gemini (limite par minute)${wait ? ` : nouvel essai dans ${Math.ceil(wait)} s` : ''}.`, { status: 429, reason: 'quota', retryable: !daily, daily, wait });
+    return new GeminiError(daily ? t('gem.quotaDaily', { model }) : t('gem.quotaMinute') + (wait ? ' ' + t('gem.retryIn', { s: Math.ceil(wait) }) : ''), { status: 429, reason: 'quota', retryable: !daily, daily, wait });
   }
-  if (res.status >= 500) return new GeminiError(`Gemini est surchargé (${res.status}). Nouvel essai…`, { status: res.status, reason: 'server', retryable: true });
-  return new GeminiError(`Gemini a refusé la demande (${res.status}) : ${msg.slice(0, 300)}`, { status: res.status, reason: 'bad-request' });
+  if (res.status >= 500) return new GeminiError(t('gem.overloaded', { status: res.status }), { status: res.status, reason: 'server', retryable: true });
+  return new GeminiError(t('gem.refused', { status: res.status, msg: msg.slice(0, 300) }), { status: res.status, reason: 'bad-request' });
 }
 
 async function call(key, path, { method = 'GET', body, signal, timeoutMs = 60000 } = {}) {
@@ -53,9 +52,9 @@ async function call(key, path, { method = 'GET', body, signal, timeoutMs = 60000
     return res.status === 204 ? {} : await res.json();
   } catch (e) {
     if (e instanceof GeminiError) throw e;
-    if (signal?.aborted) throw new GeminiError('Annulé.', { reason: 'abort' });
-    if (ctrl.signal.aborted) throw new GeminiError('Gemini ne répond pas (délai dépassé).', { reason: 'timeout', retryable: true });
-    throw new GeminiError('Réseau : impossible de joindre Gemini (' + (e.message || e) + ').', { reason: 'network', retryable: true });
+    if (signal?.aborted) throw new GeminiError(t('common.cancelled'), { reason: 'abort' });
+    if (ctrl.signal.aborted) throw new GeminiError(t('gem.timeout'), { reason: 'timeout', retryable: true });
+    throw new GeminiError(t('gem.network', { msg: e.message || e }), { reason: 'network', retryable: true });
   } finally {
     clearTimeout(t);
     signal?.removeEventListener('abort', onAbort);
@@ -119,8 +118,8 @@ const SAFETY = ['HARM_CATEGORY_HARASSMENT', 'HARM_CATEGORY_HATE_SPEECH', 'HARM_C
 /* ---------- Génération ---------- */
 // parts : [{ text } | { fileData: { fileUri, mimeType } } | { inlineData }]
 export async function generate({ key, model, parts, system, schema, temperature = 0.7, maxOutputTokens = 32768, tools, mediaResolution, signal, timeoutMs = 300000, onRetry }) {
-  if (!key) throw new GeminiError('Ajoutez votre clé Gemini dans Réglages (gratuite sur aistudio.google.com).', { reason: 'key' });
-  if (!model) throw new GeminiError('Aucun modèle Gemini choisi : ouvrez Réglages et cliquez « Tester la clé ».', { reason: 'model' });
+  if (!key) throw new GeminiError(t('err.apiNoKey'), { reason: 'key' });
+  if (!model) throw new GeminiError(t('gem.noModelChosen'), { reason: 'model' });
   let useSchema = !!schema && !(tools && tools.length);
   let maxTok = maxOutputTokens;
   for (let attempt = 0; attempt < 4; attempt++) {
@@ -145,15 +144,15 @@ export async function generate({ key, model, parts, system, schema, temperature 
       }
       throw e;
     }
-    if (r.promptFeedback?.blockReason) throw new GeminiError(`Gemini a bloqué la demande (${r.promptFeedback.blockReason}).`, { reason: 'blocked' });
+    if (r.promptFeedback?.blockReason) throw new GeminiError(t('gem.blocked', { why: r.promptFeedback.blockReason }), { reason: 'blocked' });
     const cand = r.candidates?.[0];
-    if (!cand) throw new GeminiError('Réponse vide de Gemini.', { reason: 'empty', retryable: true });
+    if (!cand) throw new GeminiError(t('gem.empty'), { reason: 'empty', retryable: true });
     const text = (cand.content?.parts || []).filter((p) => !p.thought && typeof p.text === 'string').map((p) => p.text).join('');
     const json = parseJSONLoose(text);
-    if (cand.finishReason === 'SAFETY' && !text) throw new GeminiError('Gemini a bloqué la réponse (filtre de sécurité).', { reason: 'blocked' });
+    if (cand.finishReason === 'SAFETY' && !text) throw new GeminiError(t('gem.safety'), { reason: 'blocked' });
     if ((schema && json === undefined) && attempt < 2) {
       // réponse coupée (MAX_TOKENS) ou pas en JSON : on redemande une fois
-      onRetry?.(new GeminiError('Réponse incomplète, nouvelle demande…'), 0);
+      onRetry?.(new GeminiError(t('gem.retrying')), 0);
       if (cand.finishReason === 'MAX_TOKENS') maxTok = Math.min(65536, maxTok * 2);
       continue;
     }
@@ -165,7 +164,7 @@ export async function generate({ key, model, parts, system, schema, temperature 
       grounding: cand.groundingMetadata || null
     };
   }
-  throw new GeminiError('Gemini n\'a pas renvoyé de JSON valide. Réessayez ou changez de modèle.', { reason: 'json' });
+  throw new GeminiError(t('gem.noJson'), { reason: 'json' });
 }
 
 /* ---------- Fichiers (vidéo / audio) ---------- */
@@ -183,10 +182,10 @@ export async function uploadFile({ key, blob, mimeType, displayName, onProgress,
     },
     body: JSON.stringify({ file: { display_name: String(displayName || 'tubepilot').slice(0, 120) } }),
     signal
-  }).catch((e) => { throw new GeminiError('Réseau : envoi du fichier impossible (' + e.message + ').', { reason: 'network' }); });
+  }).catch((e) => { throw new GeminiError(t('gem.uploadNetwork', { msg: e.message }), { reason: 'network' }); });
   if (!start.ok) throw await toError(start);
   const url = start.headers.get('x-goog-upload-url');
-  if (!url) throw new GeminiError('Google n\'a pas ouvert l\'envoi du fichier (URL manquante).', { reason: 'upload' });
+  if (!url) throw new GeminiError(t('gem.uploadNoUrl'), { reason: 'upload' });
 
   if (typeof XMLHttpRequest === 'undefined') {
     const res = await fetch(url, { method: 'POST', headers: { 'X-Goog-Upload-Offset': '0', 'X-Goog-Upload-Command': 'upload, finalize' }, body: blob, signal });
@@ -201,11 +200,11 @@ export async function uploadFile({ key, blob, mimeType, displayName, onProgress,
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        try { resolve(JSON.parse(xhr.responseText).file); } catch (e) { reject(new GeminiError('Réponse d\'envoi illisible.', { reason: 'upload' })); }
-      } else reject(new GeminiError(`Envoi du fichier refusé (${xhr.status}).`, { status: xhr.status, reason: 'upload' }));
+        try { resolve(JSON.parse(xhr.responseText).file); } catch (e) { reject(new GeminiError(t('gem.uploadBad'), { reason: 'upload' })); }
+      } else reject(new GeminiError(t('gem.uploadRefused', { status: xhr.status }), { status: xhr.status, reason: 'upload' }));
     };
-    xhr.onerror = () => reject(new GeminiError('Réseau : envoi du fichier interrompu.', { reason: 'network' }));
-    signal?.addEventListener('abort', () => { xhr.abort(); reject(new GeminiError('Annulé.', { reason: 'abort' })); }, { once: true });
+    xhr.onerror = () => reject(new GeminiError(t('gem.uploadCut'), { reason: 'network' }));
+    signal?.addEventListener('abort', () => { xhr.abort(); reject(new GeminiError(t('common.cancelled'), { reason: 'abort' })); }, { once: true });
     xhr.send(blob);
   });
 }
@@ -221,12 +220,12 @@ export async function waitActive(key, file, { signal, onTick, timeoutMs = 15 * 6
   const t0 = Date.now();
   let f = file;
   while (f.state === 'PROCESSING' || !f.state) {
-    if (signal?.aborted) throw new GeminiError('Annulé.', { reason: 'abort' });
-    if (Date.now() - t0 > timeoutMs) throw new GeminiError('Google traite encore la vidéo (plus de 15 min). Réessayez plus tard ou utilisez le mode « audio ».', { reason: 'timeout' });
+    if (signal?.aborted) throw new GeminiError(t('common.cancelled'), { reason: 'abort' });
+    if (Date.now() - t0 > timeoutMs) throw new GeminiError(t('gem.processingLong'), { reason: 'timeout' });
     onTick?.(Date.now() - t0);
     await sleep(2500);
     f = await getFile(key, f.name);
   }
-  if (f.state !== 'ACTIVE') throw new GeminiError(`Google n'a pas pu lire ce fichier (${f.state}${f.error?.message ? ' : ' + f.error.message : ''}).`, { reason: 'file' });
+  if (f.state !== 'ACTIVE') throw new GeminiError(t('gem.fileFailed', { state: f.state + (f.error?.message ? ' — ' + f.error.message : '') }), { reason: 'file' });
   return f;
 }

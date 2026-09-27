@@ -1,4 +1,5 @@
-// JEC TubePilot — YouTube Data API v3 (source officielle : vues, abonnés, tags publics, tendances), avec cache et compteur de quota
+// TubePilot — YouTube Data API v3 (source officielle : vues, abonnés, tags publics, tendances), avec cache et compteur de quota
+import { t } from './lang.js';
 import { cacheGet, cacheSet, addQuota, getSettings } from './storage.js';
 import './format.js';
 
@@ -9,7 +10,7 @@ export class YtError extends Error {}
 
 async function yt(endpoint, params, { units = 1, cacheMs = 6 * 3600000 } = {}) {
   const { ytKey } = await getSettings();
-  if (!ytKey) throw new YtError('Ajoutez une clé YouTube Data API v3 dans Réglages (gratuite) pour les données concurrents et tendances.');
+  if (!ytKey) throw new YtError(t('err.needYtKey'));
   const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== '' && v !== null));
   const ck = 'yt:' + endpoint + '?' + qs.toString();
   if (cacheMs) {
@@ -18,14 +19,14 @@ async function yt(endpoint, params, { units = 1, cacheMs = 6 * 3600000 } = {}) {
   }
   qs.set('key', ytKey);
   let res;
-  try { res = await fetch(BASE + endpoint + '?' + qs.toString()); } catch (e) { throw new YtError('Réseau : YouTube Data API injoignable.'); }
+  try { res = await fetch(BASE + endpoint + '?' + qs.toString()); } catch (e) { throw new YtError(t('yt.network')); }
   await addQuota(units);
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     const reason = body.error?.errors?.[0]?.reason || '';
-    if (reason === 'quotaExceeded') throw new YtError('Quota YouTube Data API épuisé pour aujourd\'hui (10 000 unités). Il revient à 9 h (heure de Paris).');
-    if (reason === 'keyInvalid' || res.status === 400 && /key/i.test(body.error?.message || '')) throw new YtError('Clé YouTube invalide : vérifiez-la dans Réglages.');
-    if (res.status === 403) throw new YtError('Clé YouTube refusée : activez « YouTube Data API v3 » dans Google Cloud et vérifiez les restrictions de la clé.');
+    if (reason === 'quotaExceeded') throw new YtError(t('yt.quota'));
+    if (reason === 'keyInvalid' || res.status === 400 && /key/i.test(body.error?.message || '')) throw new YtError(t('yt.badKey'));
+    if (res.status === 403) throw new YtError(t('yt.forbidden'));
     throw new YtError(`YouTube Data API : ${body.error?.message || res.status}`);
   }
   if (cacheMs) await cacheSet(ck, body);
@@ -148,7 +149,7 @@ export async function testKey(key) {
   const res = await fetch(BASE + 'videos?part=id&chart=mostPopular&maxResults=1&regionCode=US&key=' + encodeURIComponent(key));
   if (res.ok) return true;
   const body = await res.json().catch(() => ({}));
-  throw new YtError(body.error?.message || 'Clé refusée (' + res.status + ')');
+  throw new YtError(body.error?.message || t('yt.refused', { status: res.status }));
 }
 
 // Vidéo accessible par lien (publique ou non répertoriée) ? oEmbed répond 401/404 pour une vidéo privée. Sans clé.

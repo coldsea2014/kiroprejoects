@@ -1,4 +1,4 @@
-// JEC TubePilot — gemini.google.com (monde de la page) : quand TubePilot joint l'audio, le sélecteur de fichiers
+// TubePilot — gemini.google.com (monde de la page) : quand TubePilot joint l'audio, le sélecteur de fichiers
 // ouvert par le bouton « Importer » de Gemini reçoit directement ce fichier (une seule fois, pendant 15 s).
 (function () {
   'use strict';

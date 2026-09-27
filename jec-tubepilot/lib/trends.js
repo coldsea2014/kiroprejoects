@@ -1,4 +1,4 @@
-// JEC TubePilot — tendances du moment : YouTube Tendances Musique (API officielle) et recherche Google faite par Gemini
+// TubePilot — tendances du moment : YouTube Tendances Musique (API officielle) et recherche Google faite par Gemini
 import { cacheGet, cacheSet } from './storage.js';
 import { trending } from './ytapi.js';
 import * as G from './gemini.js';

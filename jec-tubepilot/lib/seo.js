@@ -1,7 +1,8 @@
-// JEC TubePilot — scores SEO (titre, description, tags), détection des accroches (hooks) et motifs des titres concurrents
+// TubePilot — scores SEO (titre, description, tags), détection des accroches (hooks) et motifs des titres concurrents
 (function (g) {
   'use strict';
   const F = g.TPF, P = g.TPPolicy;
+  const T = (k, v) => (g.TPI18n ? g.TPI18n.t(k, v) : k);
 
   const STOP = new Set(('le la les un une des de du d l et ou en au aux a à pour par sur dans avec sans ce cet cette ces mon ma mes ton ta tes son sa ses qui que quoi est sont c j je tu il elle on nous vous ils elles ne pas plus tres très ' +
     'the a an and or of to in on for with by at from is are be this that these those my your his her its our their it you i we they not ' +
@@ -23,14 +24,14 @@
     const t = String(title || '');
     const hooks = [];
     if (/[?؟]/.test(t)) hooks.push('question');
-    if (/\b\d+\b/.test(t.replace(/\b20\d{2}\b/g, ''))) hooks.push('nombre');
-    if (LEX.curiosity.test(t)) hooks.push('curiosité');
-    if (LEX.emotion.test(t) || F.emojis(t).some((e) => /[❤💔🥺😢😭💌😍🥹🌙✨🔥💃🎧]/u.test(e))) hooks.push('émotion');
-    if (LEX.power.test(t)) hooks.push('superlatif');
-    if (LEX.direct.test(t)) hooks.push('adresse directe');
-    if (LEX.contrast.test(t)) hooks.push('contraste');
-    if (LEX.share.test(t)) hooks.push('partage');
-    if (LEX.moment.test(t)) hooks.push("moment d'écoute");
+    if (/\b\d+\b/.test(t.replace(/\b20\d{2}\b/g, ''))) hooks.push('number');
+    if (LEX.curiosity.test(t)) hooks.push('curiosity');
+    if (LEX.emotion.test(t) || F.emojis(t).some((e) => /[❤💔🥺😢😭💌😍🥹🌙✨🔥💃🎧]/u.test(e))) hooks.push('emotion');
+    if (LEX.power.test(t)) hooks.push('power');
+    if (LEX.direct.test(t)) hooks.push('direct');
+    if (LEX.contrast.test(t)) hooks.push('contrast');
+    if (LEX.share.test(t)) hooks.push('share');
+    if (LEX.moment.test(t)) hooks.push('moment');
     return hooks;
   }
 
@@ -86,25 +87,25 @@
     const t = String(title || '').trim();
     const parts = [];
     const len = t.length;
-    parts.push({ key: 'length', label: 'Longueur', max: 15, pts: len >= 30 && len <= 70 ? 15 : len >= 20 && len <= 85 ? 9 : len > 0 && len <= 100 ? 4 : 0, tip: `${len} car. (idéal 30-70 : le titre n'est pas coupé dans les résultats).` });
+    parts.push({ key: 'length', label: T('sc.t.length'), max: 15, pts: len >= 30 && len <= 70 ? 15 : len >= 20 && len <= 85 ? 9 : len > 0 && len <= 100 ? 4 : 0, tip: T('sc.t.lengthTip', { n: len }) });
     if (ctx.keyword) {
       const m = keywordMatch(t, ctx.keyword);
-      parts.push({ key: 'keyword', label: 'Mot-clé principal', max: 25, pts: Math.round(25 * m.match), tip: m.match >= 1 ? `« ${ctx.keyword} » présent.` : m.match > 0 ? `« ${ctx.keyword} » partiellement présent.` : `Ajoutez « ${ctx.keyword} ».` });
-      parts.push({ key: 'early', label: 'Mot-clé au début', max: 10, pts: m.match >= 0.7 && m.rel <= 0.3 ? 10 : m.match >= 0.7 ? 5 : 0, tip: 'Le mot-clé au début du titre pèse plus.' });
+      parts.push({ key: 'keyword', label: T('sc.t.keyword'), max: 25, pts: Math.round(25 * m.match), tip: T(m.match >= 1 ? 'sc.t.kwFull' : m.match > 0 ? 'sc.t.kwPartial' : 'sc.t.kwMissing', { kw: ctx.keyword }) });
+      parts.push({ key: 'early', label: T('sc.t.early'), max: 10, pts: m.match >= 0.7 && m.rel <= 0.3 ? 10 : m.match >= 0.7 ? 5 : 0, tip: T('sc.t.earlyTip') });
     }
     const hooks = detectHooks(t);
-    parts.push({ key: 'hook', label: 'Accroche', max: 20, pts: Math.min(20, hooks.length * 8), tip: hooks.length ? `Accroches : ${hooks.join(', ')}.` : 'Ajoutez une accroche (émotion, curiosité, question, adresse directe…).' });
+    parts.push({ key: 'hook', label: T('sc.t.hook'), max: 20, pts: Math.min(20, hooks.length * 8), tip: hooks.length ? T('sc.t.hooksFound', { list: hooks.map((h) => T('hook.' + h)).join(', ') }) : T('sc.t.hookTip') });
     const em = F.emojis(t).length;
-    parts.push({ key: 'emoji', label: 'Emoji', max: 5, pts: em >= 1 && em <= 2 ? 5 : em === 0 ? 2 : em === 3 ? 2 : 0, tip: '1 à 2 emojis d\'émotion attirent l\'œil sans faire racoleur.' });
+    parts.push({ key: 'emoji', label: T('sc.t.emoji'), max: 5, pts: em >= 1 && em <= 2 ? 5 : em === 0 ? 2 : em === 3 ? 2 : 0, tip: T('sc.t.emojiTip') });
     let read = 15;
     if (P.capsRatio(t) > 0.6) read -= 10;
     if ((t.match(/\b[A-ZÀ-Ý]{3,}\b/g) || []).length > 2) read -= 4;
     if (/[!?]{3,}/.test(t)) read -= 5;
     if (/[<>]/.test(t) || len > 100) read -= 8;
-    parts.push({ key: 'read', label: 'Lisibilité', max: 15, pts: read, tip: 'Pas de titre en majuscules ni de ponctuation répétée.' });
+    parts.push({ key: 'read', label: T('sc.t.read'), max: 15, pts: read, tip: T('sc.t.readTip') });
     if (ctx.competitorTitles && ctx.competitorTitles.length) {
       const sim = Math.max(0, ...ctx.competitorTitles.map((c) => similarity(t, c)));
-      parts.push({ key: 'unique', label: 'Originalité', max: 10, pts: sim < 0.5 ? 10 : sim < 0.7 ? 5 : 0, tip: sim >= 0.5 ? 'Trop proche d\'un titre concurrent.' : 'Se distingue des titres concurrents.' });
+      parts.push({ key: 'unique', label: T('sc.t.unique'), max: 10, pts: sim < 0.5 ? 10 : sim < 0.7 ? 5 : 0, tip: T(sim >= 0.5 ? 'sc.t.tooClose' : 'sc.t.distinct') });
     }
     const policy = P.checkTitle(t, ctx).filter((i) => i.level !== 'info');
     let score = total(parts);
@@ -118,25 +119,25 @@
     const parts = [];
     const words = F.tokens(d).length;
     const minW = ctx.isMusic ? 80 : 150;
-    parts.push({ key: 'length', label: 'Longueur', max: 15, pts: words >= minW ? 15 : words >= minW / 2 ? 9 : words > 10 ? 4 : 0, tip: `${words} mots (visez ${minW}+ : YouTube comprend mieux le sujet).` });
+    parts.push({ key: 'length', label: T('sc.d.length'), max: 15, pts: words >= minW ? 15 : words >= minW / 2 ? 9 : words > 10 ? 4 : 0, tip: T('sc.d.lengthTip', { n: words, min: minW }) });
     if (ctx.keyword) {
       const head = d.slice(0, 160);
       const m = keywordMatch(head, ctx.keyword);
-      parts.push({ key: 'kwTop', label: 'Mot-clé en 1re ligne', max: 20, pts: Math.round(20 * m.match), tip: 'Les 2 premières lignes s\'affichent dans les résultats : le mot-clé doit y être.' });
+      parts.push({ key: 'kwTop', label: T('sc.d.kwTop'), max: 20, pts: Math.round(20 * m.match), tip: T('sc.d.kwTopTip') });
     }
     if (ctx.keywords && ctx.keywords.length) {
       const found = ctx.keywords.filter((k) => keywordMatch(d, k).match >= 0.7).length;
-      parts.push({ key: 'kwCover', label: 'Mots-clés secondaires', max: 15, pts: Math.round(15 * Math.min(1, found / Math.min(5, ctx.keywords.length))), tip: `${found}/${ctx.keywords.length} mots-clés présents naturellement.` });
+      parts.push({ key: 'kwCover', label: T('sc.d.kwCover'), max: 15, pts: Math.round(15 * Math.min(1, found / Math.min(5, ctx.keywords.length))), tip: T('sc.d.kwCoverTip', { n: found, total: ctx.keywords.length }) });
     }
     const chapters = P.parseChapters(d);
     if ((ctx.duration || 0) >= 120) {
-      const errs = chapters.length ? P.validateChapters(chapters, ctx.duration) : ['absents'];
-      parts.push({ key: 'chapters', label: 'Chapitres (timeline)', max: 15, pts: !chapters.length ? 0 : errs.length ? 5 : 15, tip: !chapters.length ? 'Ajoutez des horodatages (0:00 …) : YouTube crée des chapitres et des « moments clés » dans Google.' : errs[0] || `${chapters.length} chapitres valides.` });
+      const errs = chapters.length ? P.validateChapters(chapters, ctx.duration) : ['none'];
+      parts.push({ key: 'chapters', label: T('sc.d.chapters'), max: 15, pts: !chapters.length ? 0 : errs.length ? 5 : 15, tip: !chapters.length ? T('sc.d.chaptersTip') : errs[0] || T('sc.d.chaptersOk', { n: chapters.length }) });
     }
     const ht = P.extractHashtags(d).length;
-    parts.push({ key: 'hashtags', label: 'Hashtags', max: 10, pts: ht >= 3 && ht <= 5 ? 10 : ht >= 1 && ht <= 15 ? 6 : 0, tip: `${ht} hashtag(s) (idéal 3-5).` });
-    parts.push({ key: 'cta', label: 'Appel à l\'action', max: 10, pts: /abonn|subscri|اشترك|أشترك|like|j'aime|commente|comment|partage|share|شارك|علق/i.test(d) ? 10 : 0, tip: 'Invitez à s\'abonner, commenter ou partager.' });
-    parts.push({ key: 'links', label: 'Liens / réseaux', max: 5, pts: /https?:\/\//.test(d) ? 5 : 0, tip: 'Liens vers vos réseaux, playlist ou autres vidéos.' });
+    parts.push({ key: 'hashtags', label: T('sc.d.hashtags'), max: 10, pts: ht >= 3 && ht <= 5 ? 10 : ht >= 1 && ht <= 15 ? 6 : 0, tip: T('sc.d.hashtagsTip', { n: ht }) });
+    parts.push({ key: 'cta', label: T('sc.d.cta'), max: 10, pts: /abonn|subscri|اشترك|أشترك|like|j'aime|commente|comment|partage|share|شارك|علق/i.test(d) ? 10 : 0, tip: T('sc.d.ctaTip') });
+    parts.push({ key: 'links', label: T('sc.d.links'), max: 5, pts: /https?:\/\//.test(d) ? 5 : 0, tip: T('sc.d.linksTip') });
     const policy = P.checkDescription(d, ctx).filter((i) => i.level !== 'info');
     let score = total(parts);
     if (policy.some((i) => i.level === 'error')) score = Math.min(score, 40);
@@ -149,19 +150,19 @@
     const list = (tags || []).filter(Boolean);
     const parts = [];
     const len = P.tagsLength(list);
-    parts.push({ key: 'fill', label: 'Remplissage', max: 30, pts: len >= 300 && len <= 500 ? 30 : len >= 150 && len <= 500 ? 18 : len > 0 && len <= 500 ? 8 : 0, tip: `${len}/500 caractères (visez 300-500).` });
-    parts.push({ key: 'count', label: 'Nombre', max: 15, pts: list.length >= 8 && list.length <= 35 ? 15 : list.length >= 4 ? 8 : list.length ? 3 : 0, tip: `${list.length} tags.` });
+    parts.push({ key: 'fill', label: T('sc.g.fill'), max: 30, pts: len >= 300 && len <= 500 ? 30 : len >= 150 && len <= 500 ? 18 : len > 0 && len <= 500 ? 8 : 0, tip: T('sc.g.fillTip', { n: len }) });
+    parts.push({ key: 'count', label: T('sc.g.count'), max: 15, pts: list.length >= 8 && list.length <= 35 ? 15 : list.length >= 4 ? 8 : list.length ? 3 : 0, tip: T('sc.g.countTip', { n: list.length }) });
     if (ctx.keyword) {
       const first = list.slice(0, 3).some((t) => keywordMatch(t, ctx.keyword).match >= 0.7);
       const any = list.some((t) => keywordMatch(t, ctx.keyword).match >= 0.7);
-      parts.push({ key: 'kw', label: 'Mot-clé en premier', max: 25, pts: first ? 25 : any ? 12 : 0, tip: 'Le mot-clé principal doit être parmi les premiers tags.' });
+      parts.push({ key: 'kw', label: T('sc.g.kw'), max: 25, pts: first ? 25 : any ? 12 : 0, tip: T('sc.g.kwTip') });
     }
     const multi = list.filter((t) => t.trim().includes(' ')).length;
-    parts.push({ key: 'mix', label: 'Larges + longue traîne', max: 15, pts: list.length && multi > 0 && multi < list.length ? 15 : list.length ? 6 : 0, tip: 'Mélangez tags larges (1 mot) et expressions précises (3-5 mots).' });
+    parts.push({ key: 'mix', label: T('sc.g.mix'), max: 15, pts: list.length && multi > 0 && multi < list.length ? 15 : list.length ? 6 : 0, tip: T('sc.g.mixTip') });
     if (ctx.title) {
       const tt = new Set(F.tokens(ctx.title).filter((w) => w.length > 2 && !STOP.has(w)));
       const hit = [...tt].filter((w) => list.some((x) => F.norm(x).split(' ').includes(w))).length;
-      parts.push({ key: 'title', label: 'Cohérence avec le titre', max: 15, pts: tt.size ? Math.round(15 * Math.min(1, hit / Math.min(3, tt.size))) : 0, tip: 'Reprenez les mots importants du titre dans les tags.' });
+      parts.push({ key: 'title', label: T('sc.g.title'), max: 15, pts: tt.size ? Math.round(15 * Math.min(1, hit / Math.min(3, tt.size))) : 0, tip: T('sc.g.titleTip') });
     }
     const policy = P.checkTags(list).filter((i) => i.level !== 'info');
     let score = total(parts);

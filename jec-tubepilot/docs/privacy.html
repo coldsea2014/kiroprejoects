@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TubePilot — Privacy Policy</title>
+<style>
+  :root { --bg: #f7f7fb; --card: #fff; --text: #16151d; --muted: #5b5a6b; --border: #e4e3ee; --brand: #7c3aed; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0f0e15; --card: #17161f; --text: #ecebf5; --muted: #a3a1b8; --border: #2a2838; } }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.65 Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 32px 16px 60px; }
+  section { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px 24px; margin-bottom: 16px; }
+  h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 18px; margin: 0 0 8px; }
+  .muted { color: var(--muted); } a { color: var(--brand); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; } th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TubePilot — Privacy Policy</h1>
+  <p class="muted">Last updated: September 2026 · applies to the TubePilot browser extension, version 5 and later.</p>
+
+  <section>
+    <h2>Summary</h2>
+    <p>TubePilot has <b>no server</b>. Everything it stores stays in your browser (<code>chrome.storage.local</code>). It does not sell, share or transfer your data, does not use it for advertising, and does not use it to determine creditworthiness or for lending. The publisher of TubePilot cannot see your videos, keys, channel profiles or analyses.</p>
+  </section>
+
+  <section>
+    <h2>Data processed and where it goes</h2>
+    <table>
+      <tr><th>Data</th><th>Why</th><th>Sent to</th></tr>
+      <tr><td>Audio of the video you analyse (extracted on your computer), or the video file in API mode, or the public video link</td><td>So that Gemini can listen to the song</td><td>Google Gemini — the Gemini web app you are signed in to (subscription mode) or the Gemini API with your own key (API mode)</td></tr>
+      <tr><td>Title, description, tags, file name, channel profile text, lyrics or notes you provide</td><td>To write the SEO proposals</td><td>Google Gemini (same as above)</td></tr>
+      <tr><td>Search keywords</td><td>Real YouTube search suggestions</td><td>Google (suggestqueries.google.com)</td></tr>
+      <tr><td>Keywords, channel IDs, video IDs</td><td>Competition, statistics, trends (optional)</td><td>YouTube Data API with your own key (www.googleapis.com)</td></tr>
+      <tr><td>API keys, settings, channel profiles, analyses history, imported Keyword Planner volumes, competitor list</td><td>So the extension works</td><td>Nowhere — stored locally in your browser</td></tr>
+    </table>
+    <p>Your use of these Google services is governed by the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>, the <a href="https://policies.google.com/terms" target="_blank" rel="noopener">Google Terms of Service</a>, the <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener">YouTube Terms of Service</a> and, for API mode, the <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener">Gemini API Additional Terms</a>. TubePilot uses YouTube API Services.</p>
+  </section>
+
+  <section>
+    <h2>Page access</h2>
+    <p>TubePilot runs only on <code>studio.youtube.com</code>, <code>www.youtube.com</code> and <code>gemini.google.com</code>. On YouTube Studio it reads the fields of the video you are editing (title, description, tags, file you choose) and writes the proposals you accept. On gemini.google.com it types the request, attaches the audio and reads the answer, only when you start an analysis. It does not read other websites, your browsing history, e-mails or passwords.</p>
+  </section>
+
+  <section>
+    <h2>Retention and deletion</h2>
+    <ul>
+      <li>Analyses and cached searches stay in your browser until you delete them (History tab, <i>Settings › Backup › Clear the cache</i>) or uninstall the extension. Cached YouTube API data is refreshed or removed automatically (at most 30 days).</li>
+      <li>In API mode, the uploaded media is deleted from Google after analysis when “Delete the uploaded file” is on (default); otherwise Google deletes it automatically after 48 hours.</li>
+      <li>In subscription mode, the conversation stays in your Gemini history, which you control at <a href="https://gemini.google.com" target="_blank" rel="noopener">gemini.google.com</a> (Activity).</li>
+      <li>You can revoke TubePilot’s access to your Google data at any time by removing your keys, and review Google’s security settings at <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Children</h2>
+    <p>TubePilot is a tool for content creators and is not directed at children under 13.</p>
+  </section>
+
+  <section>
+    <h2>Contact</h2>
+    <p>Questions about this policy: contact the publisher through the support link of the store listing where you obtained TubePilot.</p>
+    <p class="muted">YouTube, YouTube Studio, Gemini and Google Ads are trademarks of Google LLC. TubePilot is an independent product, not affiliated with or endorsed by Google.</p>
+  </section>
+
+  <section lang="fr">
+    <h2>Résumé en français</h2>
+    <p>TubePilot n’a aucun serveur : vos clés, profils et analyses restent dans votre navigateur. L’audio (ou le lien) de la vidéo analysée et les textes utiles sont envoyés uniquement à Google Gemini ; les recherches de mots-clés vont chez Google / YouTube. Rien n’est vendu ni partagé. Vous pouvez tout effacer depuis les réglages (Sauvegarde › Vider le cache) ou en désinstallant l’extension.</p>
+  </section>
+</main>
+</body>
+</html>

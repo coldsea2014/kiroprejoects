@@ -1,6 +1,9 @@
-// JEC TubePilot — moteur invisible intégré à YouTube Studio : reçoit le fichier importé, l'envoie à Gemini et renvoie le pack SEO.
+// TubePilot — moteur invisible intégré à YouTube Studio : reçoit le fichier importé, l'envoie à Gemini et renvoie le pack SEO.
 // C'est une page de l'extension : la clé API ne quitte jamais l'extension et le fichier n'est lu que sur votre ordinateur.
 import { run } from '../lib/pipeline.js';
+import { I18n } from '../lib/lang.js';
+
+I18n.init();
 
 const nonce = location.hash.slice(1);
 const STUDIO = 'https://studio.youtube.com';
@@ -23,6 +26,7 @@ window.addEventListener('message', async (e) => {
   const ctrl = new AbortController();
   const me = { jobId: m.jobId, ctrl };
   current = me;
+  await I18n.init();
   try {
     const pack = await run({
       file: m.file || null,

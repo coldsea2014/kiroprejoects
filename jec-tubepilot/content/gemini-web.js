@@ -1,4 +1,4 @@
-// JEC TubePilot — pilote de gemini.google.com (votre abonnement Gemini Pro) : insère la consigne, joint l'audio,
+// TubePilot — pilote de gemini.google.com (votre abonnement Gemini Pro) : insère la consigne, joint l'audio,
 // envoie, attend la réponse finale (jamais le raisonnement), récupère le JSON et le renvoie à l'extension.
 (function () {
   'use strict';
@@ -6,6 +6,8 @@
   const alive = () => { try { return !!chrome.runtime?.id; } catch (e) { return false; } };
   window.__tpGwAlive = alive;
   const J = globalThis.TPJson;
+  const t = (k, v) => globalThis.TPI18n.t(k, v);
+  chrome.storage.local.get('settings').then(({ settings }) => globalThis.TPI18n.setLang(settings?.uiLang || 'auto')).catch(() => {});
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const flat = (s) => String(s || '').replace(/\s+/g, ' ').trim();
 
@@ -48,18 +50,13 @@
     if (!bar || !bar.isConnected) {
       bar = document.createElement('div');
       bar.id = 'tp-gw';
-      bar.style.cssText = 'position:fixed;top:10px;right:10px;z-index:2147483647;max-width:360px;background:#fff;color:#111;border:1px solid #d8c8ff;border-radius:12px;box-shadow:0 8px 28px rgba(124,58,237,.25);font:13px/1.45 system-ui,Segoe UI,Roboto,Arial,sans-serif;padding:9px 12px';
+      bar.style.cssText = 'position:fixed;top:12px;right:12px;z-index:2147483647;display:flex;gap:10px;align-items:flex-start;max-width:380px;background:#fff;color:#0f172a;border:1px solid #e3e6ee;border-radius:14px;box-shadow:0 10px 30px rgba(15,23,42,.18);font:13px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:11px 13px';
+      bar.innerHTML = '<div style="flex:none;width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#db2777);display:grid;place-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M7 4v16l13-8z"/></svg></div><div style="display:grid;gap:2px;min-width:0"><b style="font-weight:700">TubePilot</b><div data-tp-msg></div></div>';
       document.documentElement.appendChild(bar);
     }
-    bar.innerHTML = '';
-    const h = document.createElement('b');
-    h.textContent = '🚀 JEC TubePilot';
-    h.style.color = '#7c3aed';
-    const p = document.createElement('div');
+    const p = bar.querySelector('[data-tp-msg]');
     p.textContent = text;
-    if (cls === 'warn') p.style.color = '#b45309';
-    if (cls === 'ok') p.style.color = '#15803d';
-    bar.append(h, p);
+    p.style.color = cls === 'warn' ? '#b45309' : cls === 'ok' ? '#15803d' : '#475569';
   }
 
   const send = (msg) => { try { chrome.runtime.sendMessage(msg).catch(() => {}); } catch (e) { /* extension rechargée */ } };
@@ -165,14 +162,14 @@
     job = { ...j, retries: 0, done: false };
     const me = job;
     try {
-      status('Préparation de Gemini…');
-      send({ type: 'gw:status', id: me.id, stage: 'open', text: 'Ouverture de Gemini' });
+      status(t('gw.preparing'));
+      send({ type: 'gw:status', id: me.id, stage: 'open', text: t('gw.opening') });
       let ed = await waitFor(editor, 40000);
       if (!ed) {
-        status('⚠️ Connectez-vous à votre compte Google dans cette fenêtre : TubePilot continue ensuite tout seul.', 'warn');
+        status(t('gw.login'), 'warn');
         send({ type: 'gw:front', id: me.id, why: 'login' });
         ed = await waitFor(editor, 5 * 60000, 1000);
-        if (!ed) throw new Error('Gemini n\'est pas prêt (compte non connecté ?). Ouvrez gemini.google.com, connectez-vous, puis relancez.');
+        if (!ed) throw new Error(t('gw.notReady'));
       }
       if (me !== job) return;
       const baseline = responses().length;
@@ -180,32 +177,32 @@
       if (me.attachKey) {
         file = await loadAttachment(me.attachKey);
         if (file) {
-          status(`📎 Ajout de « ${file.name} »…`);
-          send({ type: 'gw:status', id: me.id, stage: 'attach', text: 'Ajout de l\'audio dans Gemini' });
+          status(t('gw.attaching', { name: file.name }));
+          send({ type: 'gw:status', id: me.id, stage: 'attach', text: t('gw.attachingShort') });
           const ok = await attach(file);
           if (!ok) {
-            status('👉 Glissez ici le fichier de votre vidéo (ou son MP3) : TubePilot continue dès qu\'il est joint.', 'warn');
+            status(t('gw.dropFile'), 'warn');
             send({ type: 'gw:front', id: me.id, why: 'attach', fileName: file.name });
             const later = await waitFor(() => !!document.querySelector(PREVIEW) || attachedVisible(file.name), 3 * 60000, 1000);
-            if (!later) throw new Error('Impossible de joindre l\'audio dans Gemini. Glissez le fichier dans Gemini ou utilisez le lien d\'une vidéo publique.');
+            if (!later) throw new Error(t('gw.attachFailed'));
           }
         }
       }
       await typeInto(editor() || ed, me.prompt);
-      status(file ? '📎 Audio joint ✓ — envoi dès la fin de l\'import…' : '➤ Envoi de la consigne à Gemini…');
+      status(file ? t('gw.attached') : t('gw.sending'));
       let sent = await clickSend(file ? 180000 : 20000);
       if (!sent) {
         send({ type: 'gw:front', id: me.id, why: 'send' });
-        status('👉 Cliquez sur Envoyer ➤ : la réponse sera récupérée automatiquement.', 'warn');
+        status(t('gw.clickSend'), 'warn');
         sent = !!(await waitFor(() => responses().length > baseline, 3 * 60000, 1000));
-        if (!sent) throw new Error('La consigne n\'a pas été envoyée dans Gemini.');
+        if (!sent) throw new Error(t('gw.notSent'));
       }
-      send({ type: 'gw:status', id: me.id, stage: 'thinking', text: 'Gemini écoute et rédige…' });
-      status('⏳ Gemini travaille… la réponse sera récupérée automatiquement (rien à copier).');
+      send({ type: 'gw:status', id: me.id, stage: 'thinking', text: t('gw.thinkingShort') });
+      status(t('gw.thinking'));
       await watch(me, baseline);
     } catch (e) {
       if (me === job) send({ type: 'gw:error', id: me.id, error: e.message || String(e) });
-      status('⚠️ ' + (e.message || e), 'warn');
+      status(e.message || String(e), 'warn');
     }
   }
 
@@ -220,7 +217,7 @@
         const now = Date.now();
         const gen = generating();
         if (gen) lastProgress = now;
-        if (now - t0 > 12 * 60000) return finish(reject, new Error('Gemini ne répond pas (plus de 12 min).'));
+        if (now - t0 > 12 * 60000) return finish(reject, new Error(t('gw.timeout')));
         const rs = responses();
         if (rs.length <= baseline) {
           if (!frontAsked && now - lastProgress > 60000) { frontAsked = true; send({ type: 'gw:front', id: me.id, why: 'stall' }); }
@@ -234,9 +231,9 @@
         if (gen && still < 8000) return;
         const { obj, cut } = J.parse(text, me.keys || []);
         const anyObj = obj || J.parse(text, []).obj;
-        if (anyObj && anyObj.error && !obj) { status('Gemini n\'a pas pu accéder au média.', 'warn'); return finish(resolve, send({ type: 'gw:done', id: me.id, text })); }
+        if (anyObj && anyObj.error && !obj) { status(t('gw.noAccess'), 'warn'); return finish(resolve, send({ type: 'gw:done', id: me.id, text })); }
         if (obj && !cut && still > 1200) {
-          status('✔ Réponse récupérée : TubePilot remplit YouTube Studio.', 'ok');
+          status(t('gw.done'), 'ok');
           return finish(resolve, send({ type: 'gw:done', id: me.id, text }));
         }
         // terminé sans JSON complet : on redemande le JSON complet (JSON commencé : 6 s de calme ; aucun : 25 s)
@@ -244,10 +241,10 @@
           if (me.retries < 2) {
             busy = true;
             me.retries++;
-            status(`🔁 Réponse incomplète : TubePilot redemande le JSON complet (${me.retries}/2)…`);
+            status(t('gw.retry', { n: me.retries }));
             const ed = editor();
             if (ed) {
-              await typeInto(ed, `Ta réponse est incomplète ou n'est pas un JSON valide. Renvoie UNIQUEMENT le JSON complet demandé${me.keys?.length ? ` (avec ${me.keys.map((k) => `« ${k} »`).join(', ')})` : ''}, dans un seul bloc de code, sans texte avant ni après. Si c'est trop long, raccourcis la description, mais le JSON doit être complet et valide.`);
+              await typeInto(ed, `Your previous answer is incomplete or not valid JSON. Send ONLY the complete JSON that was requested${me.keys?.length ? ` (with ${me.keys.map((k) => `"${k}"`).join(', ')})` : ''}, in a single code block, with no text before or after. If it is too long, shorten the description, but the JSON must be complete and valid.`);
               baseline = responses().length;
               await clickSend(20000);
               lastText = '';
@@ -255,7 +252,7 @@
             }
             busy = false;
           } else {
-            status('⚠️ JSON incomplet : TubePilot récupère ce qui est lisible.', 'warn');
+            status(t('gw.partial'), 'warn');
             finish(resolve, send({ type: 'gw:done', id: me.id, text, cut: true }));
           }
         }
@@ -274,7 +271,7 @@
       run(m.job);
       return false;
     }
-    if (m?.type === 'gw:cancel' && job && (!m.id || m.id === job.id)) { job = null; status('Annulé.'); sendResponse({ ok: true }); return false; }
+    if (m?.type === 'gw:cancel' && job && (!m.id || m.id === job.id)) { job = null; status(t('common.cancelled')); sendResponse({ ok: true }); return false; }
     return false;
   });
 })();

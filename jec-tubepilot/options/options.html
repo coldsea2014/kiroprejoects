@@ -1,121 +1,166 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>JEC TubePilot — Réglages</title>
-  <link rel="stylesheet" href="../lib/ui.css">
+  <title>TubePilot — Settings</title>
+  <link rel="stylesheet" href="../lib/tp.css">
   <link rel="stylesheet" href="options.css">
 </head>
-<body>
-  <div class="wrap">
-    <header class="row">
-      <img src="../icons/icon48.png" width="40" height="40" alt="">
-      <div><h1>JEC TubePilot</h1><div class="muted small">SEO YouTube piloté par Gemini — réglages</div></div>
-    </header>
+<body class="tp-root">
+  <header class="op-top">
+    <span id="logo"></span>
+    <div><b class="op-brand">TubePilot</b><div class="tp-small tp-muted" data-i18n="op.subtitle"></div></div>
+    <span class="tp-grow"></span>
+    <label class="op-lang"><span data-icon="globe"></span><select id="uiLang" class="tp-select"></select></label>
+  </header>
 
-    <section class="box">
-      <h2>1. Moteur IA</h2>
-      <label class="chk"><input type="radio" name="aiEngine" value="web"> <b>💎 Gemini Pro — mon abonnement (gemini.google.com)</b> — recommandé, aucune clé</label>
-      <p class="small muted">TubePilot ouvre Gemini dans une petite fenêtre, envoie la consigne avec le <b>lien</b> de la vidéo (si elle est publique ou non répertoriée) ou son <b>audio</b> extrait automatiquement du fichier importé, récupère le JSON, remplit YouTube Studio, puis ferme la fenêtre. Restez connecté à gemini.google.com ; choisissez une fois le modèle (Pro ou Flash) dans Gemini, il est retenu.</p>
-      <div class="grid2">
-        <label>Adresse de Gemini (2e compte : https://gemini.google.com/u/1/app)<input id="geminiUrl" placeholder="https://gemini.google.com/app"></label>
-        <label>Demandes à Gemini
-          <select id="geminiSteps">
-            <option value="2">2 étapes : écoute, puis SEO avec les vraies recherches YouTube (meilleur)</option>
-            <option value="1">1 seule demande (plus rapide)</option>
-          </select>
-        </label>
-        <label>Fenêtre Gemini
-          <select id="geminiWindow">
-            <option value="popup">Petite fenêtre dans le coin de l'écran</option>
-            <option value="tab">Onglet en arrière-plan</option>
-          </select>
-        </label>
-      </div>
-      <label class="chk"><input type="checkbox" id="geminiClose"> Fermer Gemini dès que le JSON est récupéré</label>
-      <label class="chk"><input type="radio" name="aiEngine" value="api"> <b>🔑 API Gemini</b> (clé AI Studio) — pour ceux qui préfèrent l'API (voir ci-dessous)</label>
-    </section>
+  <div class="op-layout">
+    <nav class="op-nav" id="nav">
+      <a href="#start" data-icon="zap"><span data-i18n="op.nav.start"></span></a>
+      <a href="#engine" data-icon="sparkles"><span data-i18n="op.nav.engine"></span></a>
+      <a href="#youtube" data-icon="video"><span data-i18n="op.nav.youtube"></span></a>
+      <a href="#kp" data-icon="chart"><span data-i18n="op.nav.kp"></span></a>
+      <a href="#studio" data-icon="wand"><span data-i18n="op.nav.studio"></span></a>
+      <a href="#profiles" data-icon="users"><span data-i18n="op.nav.profiles"></span></a>
+      <a href="#backup" data-icon="download"><span data-i18n="op.nav.backup"></span></a>
+      <a href="#about" data-icon="info"><span data-i18n="op.nav.about"></span></a>
+    </nav>
 
-    <section class="box">
-      <h2>1 bis. Clé Gemini (seulement pour le mode API)</h2>
-      <p class="small muted">Gratuite : ouvrez <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> → « Create API key » → copiez la clé (commence par « AIza »).
-        C'est grâce à l'API que Gemini <b>écoute et regarde le fichier lui-même</b>, même quand la vidéo est privée. Votre abonnement Gemini Pro reste utilisable en mode manuel (panneau › « Mon abonnement Gemini Pro »).</p>
-      <div class="row">
-        <input id="geminiKey" type="password" placeholder="AIza…" autocomplete="off">
-        <button id="testGemini">Tester la clé</button>
-      </div>
-      <div id="geminiStatus" class="small"></div>
-      <div class="grid2">
-        <label>Modèle principal (écoute + rédaction)
-          <select id="modelMain"></select>
-        </label>
-        <label>Modèle rapide (accroches, idées)
-          <select id="modelFast"></select>
-        </label>
-      </div>
-      <p class="tiny muted">Conseil : un modèle « Pro » analyse mieux la musique ; en quota gratuit, un modèle « Flash » permet beaucoup plus de vidéos par jour. La liste vient directement de votre compte Google.</p>
-      <div class="grid2">
-        <label>Média envoyé par défaut
-          <select id="mediaMode">
-            <option value="auto">Auto (vidéo ; audio seul si très longue)</option>
-            <option value="audio">Audio seul (rapide, économique)</option>
-            <option value="video">Vidéo complète (image + son)</option>
-          </select>
-        </label>
-        <label>Nombre de titres proposés
-          <select id="titleCount"><option>6</option><option>8</option><option>10</option><option>12</option></select>
-        </label>
-      </div>
-      <label class="chk"><input type="checkbox" id="deleteFiles"> Supprimer le fichier chez Google juste après l'analyse (sinon effacé automatiquement sous 48 h)</label>
-      <label class="chk"><input type="checkbox" id="transcribeLyrics"> Transcrire les paroles entendues</label>
-    </section>
+    <main class="op-main">
+      <!-- Démarrage -->
+      <section id="start" class="tp-card op-hero">
+        <div class="tp-card__body">
+          <div class="tp-row"><span class="tp-acc__icon" data-icon="zap"></span><h2 class="tp-h1" data-i18n="op.start.title"></h2></div>
+          <p class="tp-muted" data-i18n="op.start.text"></p>
+          <ol class="op-steps" id="steps">
+            <li data-step="engine"><span class="op-dot"></span><div><b data-i18n="op.start.s1"></b><div class="tp-small tp-muted" data-i18n="op.start.s1d"></div></div><button class="tp-btn tp-btn--sm" id="openGem"><span data-icon="external"></span><span data-i18n="op.start.openGemini"></span></button></li>
+            <li data-step="profile"><span class="op-dot"></span><div><b data-i18n="op.start.s2"></b><div class="tp-small tp-muted" data-i18n="op.start.s2d"></div></div><a class="tp-btn tp-btn--sm" href="#profiles"><span data-i18n="op.start.go"></span></a></li>
+            <li data-step="yt"><span class="op-dot"></span><div><b data-i18n="op.start.s3"></b><div class="tp-small tp-muted" data-i18n="op.start.s3d"></div></div><a class="tp-btn tp-btn--sm" href="#youtube"><span data-i18n="op.start.go"></span></a></li>
+            <li data-step="studio"><span class="op-dot"></span><div><b data-i18n="op.start.s4"></b><div class="tp-small tp-muted" data-i18n="op.start.s4d"></div></div><a class="tp-btn tp-btn--sm tp-btn--primary" href="https://studio.youtube.com" target="_blank" rel="noopener"><span data-icon="external"></span><span data-i18n="op.start.openStudio"></span></a></li>
+          </ol>
+        </div>
+      </section>
 
-    <section class="box">
-      <h2>2. Clé YouTube Data API v3 (concurrents, tendances, statistiques)</h2>
-      <p class="small muted">Gratuite : <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">activez « YouTube Data API v3 »</a>, puis
-        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Identifiants</a> → « Créer des identifiants » → « Clé API ». Quota : 10 000 unités par jour (une analyse de concurrence ≈ 102 unités, tout est mis en cache).</p>
-      <div class="row">
-        <input id="ytKey" type="password" placeholder="AIza…" autocomplete="off">
-        <button id="testYt">Tester la clé</button>
-      </div>
-      <div id="ytStatus" class="small"></div>
-      <label class="chk"><input type="checkbox" id="competitorLookup"> Comparer les 2 meilleurs mots-clés sur YouTube pendant chaque génération (~204 unités)</label>
-      <label class="chk"><input type="checkbox" id="webTrends"> 🌐 Tendances du moment : YouTube Tendances Musique du pays + recherche Google faite par Gemini (hashtags et recherches en hausse)</label>
-    </section>
+      <!-- Moteur IA -->
+      <section id="engine" class="tp-card">
+        <div class="tp-card__head"><span class="tp-acc__icon" data-icon="sparkles"></span><h2 class="tp-h2" data-i18n="op.engine.title"></h2></div>
+        <div class="tp-card__body">
+          <div class="op-choices">
+            <label class="op-choice"><input type="radio" name="aiEngine" value="web"><div><b data-i18n="op.engine.web"></b><span class="tp-chip tp-chip--good" data-i18n="op.recommended"></span><p class="tp-small tp-muted" data-i18n="op.engine.webDesc"></p></div></label>
+            <label class="op-choice"><input type="radio" name="aiEngine" value="api"><div><b data-i18n="op.engine.api"></b><p class="tp-small tp-muted" data-i18n="op.engine.apiDesc"></p></div></label>
+          </div>
+          <div id="webOpts" class="tp-stack">
+            <div class="op-grid2">
+              <label class="tp-field"><span class="tp-label" data-i18n="op.engine.url"></span><input id="geminiUrl" class="tp-input" placeholder="https://gemini.google.com/app"><span class="tp-help" data-i18n="op.engine.urlHelp"></span></label>
+              <label class="tp-field"><span class="tp-label" data-i18n="op.engine.steps"></span>
+                <select id="geminiSteps" class="tp-select"><option value="2" data-i18n="op.engine.steps2"></option><option value="1" data-i18n="op.engine.steps1"></option></select></label>
+              <label class="tp-field"><span class="tp-label" data-i18n="op.engine.window"></span>
+                <select id="geminiWindow" class="tp-select"><option value="popup" data-i18n="op.engine.popup"></option><option value="tab" data-i18n="op.engine.tab"></option></select></label>
+            </div>
+            <label class="tp-switch"><input type="checkbox" id="geminiClose"><span class="tp-switch__text"><span data-i18n="op.engine.close"></span></span></label>
+            <div class="tp-alert tp-alert--info"><span data-icon="info"></span><span data-i18n="op.engine.webNote"></span></div>
+          </div>
+          <div id="apiOpts" class="tp-stack">
+            <label class="tp-field"><span class="tp-label" data-i18n="op.engine.key"></span>
+              <div class="tp-inputgroup"><input id="geminiKey" class="tp-input" type="password" placeholder="AIza…" autocomplete="off"><button id="testGemini" class="tp-btn"><span data-i18n="op.test"></span></button></div>
+              <span class="tp-help" data-i18n-html="op.engine.keyHelp"></span></label>
+            <div id="geminiStatus" class="tp-small"></div>
+            <div class="op-grid2">
+              <label class="tp-field"><span class="tp-label" data-i18n="op.engine.mainModel"></span><select id="modelMain" class="tp-select"></select></label>
+              <label class="tp-field"><span class="tp-label" data-i18n="op.engine.fastModel"></span><select id="modelFast" class="tp-select"></select></label>
+              <label class="tp-field"><span class="tp-label" data-i18n="run.media"></span>
+                <select id="mediaMode" class="tp-select"><option value="auto" data-i18n="run.mediaAuto"></option><option value="audio" data-i18n="run.mediaAudio"></option><option value="video" data-i18n="run.mediaVideo"></option></select></label>
+            </div>
+            <label class="tp-switch"><input type="checkbox" id="deleteFiles"><span class="tp-switch__text"><span data-i18n="op.engine.deleteFiles"></span></span></label>
+          </div>
+          <div class="op-grid2">
+            <label class="tp-field"><span class="tp-label" data-i18n="op.titleCount"></span><select id="titleCount" class="tp-select"><option>6</option><option>8</option><option>10</option><option>12</option></select></label>
+          </div>
+          <label class="tp-switch"><input type="checkbox" id="transcribeLyrics"><span class="tp-switch__text"><span data-i18n="run.transcribe"></span></span></label>
+        </div>
+      </section>
 
-    <section class="box">
-      <h2>3. YouTube Studio</h2>
-      <label class="chk"><input type="checkbox" id="autopilot"> ⚡ Pilote automatique : dès qu'une vidéo est importée, Gemini l'écoute et le SEO est préparé</label>
-      <label class="chk"><input type="checkbox" id="autofill"> Remplir tout seul le titre (s'il est encore le nom du fichier), la description et les tags (s'ils sont vides)</label>
-      <label class="chk"><input type="checkbox" id="studioCard"> Afficher la carte TubePilot sous le champ Titre</label>
-      <label class="chk"><input type="checkbox" id="tagSuggest"> Suggestions de tags (vraies recherches YouTube) pendant la saisie</label>
-      <label class="chk"><input type="checkbox" id="watchCard"> Carte d'analyse sur les pages vidéo YouTube (tags, vues/heure, score)</label>
-    </section>
+      <!-- YouTube Data API -->
+      <section id="youtube" class="tp-card">
+        <div class="tp-card__head"><span class="tp-acc__icon" data-icon="video"></span><h2 class="tp-h2" data-i18n="op.yt.title"></h2><span class="tp-chip" data-i18n="op.optional"></span></div>
+        <div class="tp-card__body">
+          <p class="tp-small tp-muted" data-i18n-html="op.yt.help"></p>
+          <div class="tp-inputgroup"><input id="ytKey" class="tp-input" type="password" placeholder="AIza…" autocomplete="off"><button id="testYt" class="tp-btn"><span data-i18n="op.test"></span></button></div>
+          <div id="ytStatus" class="tp-small"></div>
+          <label class="tp-switch"><input type="checkbox" id="competitorLookup"><span class="tp-switch__text"><span data-i18n="run.compare"></span><span class="tp-help" data-i18n="run.compareHelp"></span></span></label>
+          <label class="tp-switch"><input type="checkbox" id="webTrends"><span class="tp-switch__text"><span data-i18n="run.trends"></span></span></label>
+        </div>
+      </section>
 
-    <section class="box">
-      <div class="row"><h2>4. Profils de chaînes</h2><span class="sp"></span><button id="addProfile">➕ Ajouter un profil</button></div>
-      <p class="small muted">Chaque chaîne a sa langue, son public et ses règles. Dans Studio, le profil est choisi automatiquement grâce à l'ID de la chaîne (UC…, visible dans l'adresse de Studio).</p>
-      <div id="profiles"></div>
-    </section>
+      <!-- Keyword Planner -->
+      <section id="kp" class="tp-card">
+        <div class="tp-card__head"><span class="tp-acc__icon" data-icon="chart"></span><h2 class="tp-h2" data-i18n="kp.title"></h2><span class="tp-chip" data-i18n="op.optional"></span></div>
+        <div class="tp-card__body">
+          <p class="tp-small tp-muted" data-i18n="kp.help"></p>
+          <ol class="tp-small op-ol"><li data-i18n-html="kp.step1"></li><li data-i18n="kp.step2"></li><li data-i18n="kp.step3"></li></ol>
+          <div class="tp-row">
+            <label class="tp-btn tp-btn--primary"><input type="file" id="kpFile" accept=".csv,.tsv,text/csv,text/tab-separated-values" hidden multiple><span data-icon="upload"></span><span data-i18n="kp.import"></span></label>
+            <a class="tp-btn" href="https://ads.google.com/aw/keywordplanner/home" target="_blank" rel="noopener"><span data-icon="external"></span><span data-i18n="kp.open"></span></a>
+            <button id="kpClear" class="tp-btn tp-btn--ghost"><span data-icon="trash"></span><span data-i18n="kp.clear"></span></button>
+            <span id="kpState" class="tp-small tp-muted"></span>
+          </div>
+          <div id="kpMsg"></div>
+        </div>
+      </section>
 
-    <section class="box">
-      <h2>5. Sauvegarde</h2>
-      <div class="row">
-        <button id="export">⬇ Exporter les réglages</button>
-        <label class="btnlike"><input type="file" id="import" accept="application/json" hidden>⬆ Importer</label>
-        <span class="sp"></span>
-        <button id="clearCache" class="ghost">Vider le cache</button>
-      </div>
-      <div id="backupStatus" class="small"></div>
-    </section>
+      <!-- Studio -->
+      <section id="studio" class="tp-card">
+        <div class="tp-card__head"><span class="tp-acc__icon" data-icon="wand"></span><h2 class="tp-h2" data-i18n="op.studio.title"></h2></div>
+        <div class="tp-card__body">
+          <label class="tp-switch"><input type="checkbox" id="autopilot"><span class="tp-switch__text"><b data-i18n="op.studio.autopilot"></b><span class="tp-help" data-i18n="op.studio.autopilotHelp"></span></span></label>
+          <label class="tp-switch"><input type="checkbox" id="autofill"><span class="tp-switch__text"><span data-i18n="op.studio.autofill"></span><span class="tp-help" data-i18n="op.studio.autofillHelp"></span></span></label>
+          <label class="tp-switch"><input type="checkbox" id="studioCard"><span class="tp-switch__text"><span data-i18n="op.studio.card"></span></span></label>
+          <label class="tp-switch"><input type="checkbox" id="tagSuggest"><span class="tp-switch__text"><span data-i18n="op.studio.tagSuggest"></span></span></label>
+          <label class="tp-switch"><input type="checkbox" id="watchCard"><span class="tp-switch__text"><span data-i18n="op.studio.watchCard"></span></span></label>
+        </div>
+      </section>
 
-    <section class="box small muted">
-      <h2>Confidentialité & règles</h2>
-      <p>Vos clés restent dans Chrome (stockage local de l'extension). Le fichier vidéo est lu sur votre ordinateur puis envoyé uniquement à Google (API Gemini) pour l'analyse. Les métadonnées générées suivent le règlement YouTube : pas de titres trompeurs, pas de bourrage de mots-clés, tags ≤ 500 caractères, 3 à 5 hashtags, chapitres valides, mention « contenu synthétique » rappelée quand c'est utile.</p>
-    </section>
-    <div id="saved" class="saved hidden">Enregistré ✓</div>
+      <!-- Profils -->
+      <section id="profiles" class="tp-card">
+        <div class="tp-card__head"><span class="tp-acc__icon" data-icon="users"></span><h2 class="tp-h2" data-i18n="op.nav.profiles"></h2><span class="tp-grow"></span><button id="addProfile" class="tp-btn tp-btn--sm"><span data-icon="plus"></span><span data-i18n="op.profiles.add"></span></button></div>
+        <div class="tp-card__body">
+          <p class="tp-small tp-muted" data-i18n="op.profiles.help"></p>
+          <div id="profileList" class="tp-stack"></div>
+        </div>
+      </section>
+
+      <!-- Sauvegarde -->
+      <section id="backup" class="tp-card">
+        <div class="tp-card__head"><span class="tp-acc__icon" data-icon="download"></span><h2 class="tp-h2" data-i18n="op.nav.backup"></h2></div>
+        <div class="tp-card__body">
+          <div class="tp-row">
+            <button id="export" class="tp-btn"><span data-icon="download"></span><span data-i18n="op.backup.export"></span></button>
+            <label class="tp-btn"><input type="file" id="import" accept="application/json" hidden><span data-icon="upload"></span><span data-i18n="op.backup.import"></span></label>
+            <span class="tp-grow"></span>
+            <button id="clearCache" class="tp-btn tp-btn--ghost"><span data-icon="trash"></span><span data-i18n="op.backup.clearCache"></span></button>
+          </div>
+          <div id="backupStatus" class="tp-small"></div>
+        </div>
+      </section>
+
+      <!-- À propos -->
+      <section id="about" class="tp-card">
+        <div class="tp-card__head"><span class="tp-acc__icon" data-icon="info"></span><h2 class="tp-h2" data-i18n="op.nav.about"></h2><span id="version" class="tp-chip"></span></div>
+        <div class="tp-card__body">
+          <p class="tp-small tp-muted" data-i18n="op.about.privacy"></p>
+          <p class="tp-small tp-muted" data-i18n="op.about.policy"></p>
+          <div class="tp-row">
+            <a class="tp-btn tp-btn--sm" id="docLink" target="_blank" rel="noopener"><span data-icon="file"></span><span data-i18n="op.about.docs"></span></a>
+            <a class="tp-btn tp-btn--sm" id="privacyLink" target="_blank" rel="noopener"><span data-icon="lock"></span><span data-i18n="op.about.privacyLink"></span></a>
+          </div>
+          <p class="tp-tiny tp-faint" data-i18n="op.about.trademark"></p>
+        </div>
+      </section>
+    </main>
   </div>
+  <div id="saved" class="op-saved tp-hidden"></div>
+  <script src="../lib/icons.js"></script>
   <script type="module" src="options.js"></script>
 </body>
 </html>

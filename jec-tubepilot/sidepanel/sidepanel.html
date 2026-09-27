@@ -1,196 +1,194 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>JEC TubePilot</title>
-  <link rel="stylesheet" href="../lib/ui.css">
+  <title>TubePilot</title>
+  <link rel="stylesheet" href="../lib/tp.css">
   <link rel="stylesheet" href="sidepanel.css">
 </head>
-<body>
-  <header class="top">
-    <img src="../icons/icon32.png" alt="" width="22" height="22">
-    <b>JEC TubePilot</b>
-    <span class="sp"></span>
-    <select id="profile" title="Profil de chaîne utilisé"></select>
-    <button id="openOptions" class="ghost" title="Réglages">⚙️</button>
+<body class="tp-root">
+  <header class="sp-top">
+    <span id="logo"></span>
+    <div class="sp-brand"><b>TubePilot</b><span id="engineChip" class="sp-engine"></span></div>
+    <span class="tp-grow"></span>
+    <select id="profile" class="tp-select sp-profile" data-i18n-title="panel.profile"></select>
+    <button id="openOptions" class="tp-btn tp-btn--ghost tp-btn--icon" data-i18n-title="common.settings"></button>
   </header>
 
-  <nav class="tabs">
-    <button data-tab="video" class="on">🎬 Vidéo</button>
-    <button data-tab="keywords">🔑 Mots-clés</button>
-    <button data-tab="competitors">🥊 Concurrents</button>
-    <button data-tab="trends">🔥 Tendances</button>
-    <button data-tab="history">🗂️</button>
+  <nav class="sp-nav" role="tablist">
+    <button class="sp-navbtn" data-tab="video" aria-selected="true"><span data-icon="video"></span><span data-i18n="nav.video"></span></button>
+    <button class="sp-navbtn" data-tab="keywords"><span data-icon="key"></span><span data-i18n="nav.keywords"></span></button>
+    <button class="sp-navbtn" data-tab="competitors"><span data-icon="users"></span><span data-i18n="nav.competitors"></span></button>
+    <button class="sp-navbtn" data-tab="trends"><span data-icon="trending"></span><span data-i18n="nav.trends"></span></button>
+    <button class="sp-navbtn" data-tab="history"><span data-icon="history"></span><span data-i18n="nav.history"></span></button>
   </nav>
 
   <main>
     <!-- ================= VIDÉO ================= -->
-    <section id="tab-video" class="tab on">
-      <div id="ctxBox" class="note small"></div>
-      <details class="box" id="keysBox">
-        <summary>⚙️ Moteur IA & clés — <span id="keysState"></span></summary>
-        <div class="seg" id="engineSeg">
-          <label class="chk"><input type="radio" name="engine" value="web"> 💎 Gemini Pro — mon abonnement</label>
-          <label class="chk"><input type="radio" name="engine" value="api"> 🔑 API Gemini (clé AI Studio)</label>
-        </div>
-        <div id="webOpts">
-          <div class="small">TubePilot ouvre <b>gemini.google.com</b> dans une petite fenêtre, envoie la consigne avec le lien ou l'audio de la vidéo, récupère le JSON, remplit YouTube Studio puis ferme la fenêtre. Restez connecté à Gemini ; le modèle choisi dans Gemini (Pro ou Flash) est gardé.</div>
-          <label>Adresse de Gemini (2e compte Google : https://gemini.google.com/u/1/app)<input id="gUrl" placeholder="https://gemini.google.com/app"></label>
-          <div class="grid2">
-            <label>Demandes à Gemini
-              <select id="gSteps">
-                <option value="2">2 étapes : écoute, puis SEO avec les vraies recherches YouTube (meilleur)</option>
-                <option value="1">1 seule demande (plus rapide)</option>
-              </select>
-            </label>
-            <label>Fenêtre Gemini
-              <select id="gWin">
-                <option value="popup">Petite fenêtre dans le coin</option>
-                <option value="tab">Onglet en arrière-plan</option>
-              </select>
-            </label>
-          </div>
-          <label class="chk"><input type="checkbox" id="gClose"> Fermer Gemini dès que le JSON est récupéré</label>
-        </div>
-        <div id="apiOpts">
-          <div class="small">Clé Gemini — gratuite sur <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></div>
-          <div class="row"><input id="gKey" type="password" placeholder="AIza…" autocomplete="off" aria-label="Clé Gemini"><button id="gSave" class="small">Enregistrer et tester</button></div>
-          <div id="gState" class="small"></div>
-          <div class="grid2">
-            <label>Modèle principal (écoute + SEO)<select id="mMain"></select></label>
-            <label>Modèle rapide (tendances, accroches)<select id="mFast"></select></label>
-          </div>
-        </div>
-        <div class="small">Clé YouTube Data API v3 (optionnelle : concurrents, tendances YouTube) — gratuite : <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">activer l'API</a>, puis <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">créer une clé</a></div>
-        <div class="row"><input id="yKey" type="password" placeholder="AIza…" autocomplete="off" aria-label="Clé YouTube Data API"><button id="ySave" class="small">Enregistrer et tester</button></div>
-        <div id="yState" class="small"></div>
-      </details>
+    <section id="tab-video" class="sp-tab on">
+      <div id="ctxCard"></div>
 
-      <div class="box">
-        <div class="seg" id="srcSeg">
-          <label class="chk"><input type="radio" name="src" value="studio" checked> Vidéo importée dans Studio</label>
-          <label class="chk"><input type="radio" name="src" value="file"> Fichier de l'ordinateur</label>
-          <label class="chk"><input type="radio" name="src" value="url"> Lien YouTube public</label>
-          <label class="chk"><input type="radio" name="src" value="express"> Express (sans écoute)</label>
-        </div>
-        <div id="srcFile" class="hidden"><input type="file" id="fileIn" accept="video/*,audio/*"></div>
-        <div id="srcUrl" class="hidden"><input id="urlIn" type="url" placeholder="https://www.youtube.com/watch?v=…"></div>
-        <details>
-          <summary class="small">Options et indications pour Gemini</summary>
-          <div class="grid2">
-            <label>Mot-clé principal (optionnel)<input id="kwIn" placeholder="ex. اغاني مغربية حزينة"></label>
-            <label>Média envoyé à Gemini
-              <select id="mediaMode">
-                <option value="auto">Auto (vidéo, ou audio si très longue)</option>
-                <option value="audio">Audio seul (rapide, économique)</option>
-                <option value="video">Vidéo complète (image + son)</option>
-              </select>
-            </label>
+      <div class="tp-card" id="runCard">
+        <div class="tp-card__head"><span class="tp-acc__icon" data-icon="sparkles"></span><b class="tp-h2" data-i18n="run.title"></b></div>
+        <div class="tp-card__body">
+          <div class="tp-seg" id="srcSeg">
+            <label><input type="radio" name="src" value="studio" checked><span data-icon="video"></span><span data-i18n="run.srcStudio"></span></label>
+            <label><input type="radio" name="src" value="file"><span data-icon="upload"></span><span data-i18n="run.srcFile"></span></label>
+            <label><input type="radio" name="src" value="url"><span data-icon="link"></span><span data-i18n="run.srcLink"></span></label>
+            <label><input type="radio" name="src" value="express"><span data-icon="zap"></span><span data-i18n="run.srcQuick"></span></label>
           </div>
-          <label>Notes (sujet, public, sortie…)<textarea id="notesIn" rows="2" placeholder="ex. chanson d'amour pour les mariages, voix IA Suno, sortie vendredi"></textarea></label>
-          <label>Paroles (si vous les avez)<textarea id="lyricsIn" rows="3"></textarea></label>
-          <label class="chk"><input type="checkbox" id="lyricsChk"> Transcrire les paroles entendues</label>
-          <label class="chk"><input type="checkbox" id="compChk"> Comparer les 2 meilleurs mots-clés sur YouTube (clé YouTube, ~204 unités)</label>
-          <label class="chk"><input type="checkbox" id="webChk"> 🌐 Tendances du moment (YouTube Tendances + recherche Google par Gemini)</label>
-          <label class="chk"><input type="checkbox" id="reChk"> Réécouter même si la vidéo a déjà été analysée</label>
-        </details>
-        <button id="runBtn" class="primary big">🚀 Analyser la vidéo & générer le SEO</button>
-        <div id="progress" class="hidden"></div>
-        <div id="runErr" class="alert small hidden"></div>
+          <div id="srcHelp" class="tp-help"></div>
+          <div id="srcFile" class="tp-hidden"><input type="file" id="fileIn" class="tp-input" accept="video/*,audio/*"></div>
+          <div id="srcUrl" class="tp-hidden"><input id="urlIn" class="tp-input" type="url" placeholder="https://www.youtube.com/watch?v=…"></div>
+          <details class="sp-adv">
+            <summary><span data-icon="sliders"></span><span data-i18n="run.advanced"></span></summary>
+            <div class="tp-stack">
+              <div class="sp-grid2">
+                <label class="tp-field"><span class="tp-label" data-i18n="run.keyword"></span><input id="kwIn" class="tp-input" data-i18n-ph="run.keywordPh"></label>
+                <label class="tp-field"><span class="tp-label" data-i18n="run.media"></span>
+                  <select id="mediaMode" class="tp-select">
+                    <option value="auto" data-i18n="run.mediaAuto"></option>
+                    <option value="audio" data-i18n="run.mediaAudio"></option>
+                    <option value="video" data-i18n="run.mediaVideo"></option>
+                  </select>
+                </label>
+              </div>
+              <label class="tp-field"><span class="tp-label" data-i18n="run.notes"></span><textarea id="notesIn" class="tp-textarea" rows="2" data-i18n-ph="run.notesPh"></textarea></label>
+              <label class="tp-field"><span class="tp-label" data-i18n="run.lyrics"></span><textarea id="lyricsIn" class="tp-textarea" rows="3"></textarea></label>
+              <label class="tp-switch"><input type="checkbox" id="lyricsChk"><span class="tp-switch__text"><span data-i18n="run.transcribe"></span></span></label>
+              <label class="tp-switch"><input type="checkbox" id="compChk"><span class="tp-switch__text"><span data-i18n="run.compare"></span><span class="tp-help" data-i18n="run.compareHelp"></span></span></label>
+              <label class="tp-switch"><input type="checkbox" id="webChk"><span class="tp-switch__text"><span data-i18n="run.trends"></span></span></label>
+              <label class="tp-switch"><input type="checkbox" id="reChk"><span class="tp-switch__text"><span data-i18n="run.relisten"></span></span></label>
+            </div>
+          </details>
+          <button id="runBtn" class="tp-btn tp-btn--primary tp-btn--lg tp-btn--block"></button>
+          <div id="progress" class="tp-hidden"></div>
+          <div id="runErr" class="tp-hidden"></div>
+        </div>
       </div>
 
-      <details class="box" id="manualBox">
-        <summary>📋 Copier-coller manuel dans Gemini (secours)</summary>
-        <ol class="small">
-          <li>Cliquez « Copier le prompt ».</li>
-          <li>Ouvrez Gemini, <b>joignez votre vidéo ou le MP3</b>, choisissez le modèle le plus puissant et collez le prompt.</li>
-          <li>Copiez toute la réponse de Gemini et collez-la ci-dessous.</li>
-        </ol>
-        <div class="row">
-          <button id="copyPrompt">📋 Copier le prompt</button>
-          <button id="openGemini">↗ Ouvrir Gemini</button>
+      <details class="tp-acc" id="manualBox">
+        <summary><span class="tp-acc__icon" data-icon="copy"></span><span data-i18n="manual.title"></span><span class="tp-acc__chev" data-icon="down"></span></summary>
+        <div class="tp-acc__body">
+          <ol class="tp-small sp-ol">
+            <li data-i18n="manual.step1"></li>
+            <li data-i18n="manual.step2"></li>
+            <li data-i18n="manual.step3"></li>
+          </ol>
+          <div class="tp-row">
+            <button id="copyPrompt" class="tp-btn tp-btn--sm"><span data-icon="copy"></span><span data-i18n="manual.copy"></span></button>
+            <button id="openGemini" class="tp-btn tp-btn--sm"><span data-icon="external"></span><span data-i18n="manual.open"></span></button>
+          </div>
+          <textarea id="manualIn" class="tp-textarea" rows="4" data-i18n-ph="manual.pastePh"></textarea>
+          <button id="manualApply" class="tp-btn tp-btn--sm"><span data-icon="check"></span><span data-i18n="manual.apply"></span></button>
         </div>
-        <textarea id="manualIn" rows="4" placeholder="Collez ici la réponse de Gemini (le bloc JSON)"></textarea>
-        <button id="manualApply">✅ Utiliser cette réponse</button>
       </details>
 
-      <div id="result"></div>
+      <div id="result" class="tp-stack"></div>
     </section>
 
     <!-- ================= MOTS-CLÉS ================= -->
-    <section id="tab-keywords" class="tab">
-      <div class="box">
-        <div class="row">
-          <input id="kwSeed" placeholder="ex. أغاني مغربية, chaabi mariage, lofi arabic">
-          <button id="kwGo" class="primary">Rechercher</button>
+    <section id="tab-keywords" class="sp-tab">
+      <div class="tp-card">
+        <div class="tp-card__body">
+          <div class="tp-inputgroup">
+            <input id="kwSeed" class="tp-input" data-i18n-ph="kw.seedPh">
+            <button id="kwGo" class="tp-btn tp-btn--primary"><span data-icon="search"></span><span data-i18n="kw.search"></span></button>
+          </div>
+          <div class="sp-grid3">
+            <label class="tp-field"><span class="tp-label" data-i18n="kw.language"></span><select id="kwHl" class="tp-select"></select></label>
+            <label class="tp-field"><span class="tp-label" data-i18n="kw.country"></span><select id="kwGl" class="tp-select"></select></label>
+            <label class="tp-switch sp-deep"><input type="checkbox" id="kwDeep" checked><span class="tp-switch__text"><span data-i18n="kw.deep"></span></span></label>
+          </div>
+          <div class="tp-help" data-i18n="kw.sourceNote"></div>
         </div>
-        <div class="grid3 small">
-          <label>Langue<select id="kwHl"></select></label>
-          <label>Pays<select id="kwGl"></select></label>
-          <label class="chk"><input type="checkbox" id="kwDeep" checked> Recherche A→Z</label>
-        </div>
-        <div class="muted tiny">Source : suggestions réelles de la barre de recherche YouTube. La popularité est un indice (0-100), pas un nombre de recherches — aucun outil n'a accès au vrai volume YouTube.</div>
       </div>
+      <details class="tp-acc" id="kpBox">
+        <summary><span class="tp-acc__icon" data-icon="chart"></span><span data-i18n="kp.title"></span><span id="kpState" class="tp-faint tp-small"></span><span class="tp-acc__chev" data-icon="down"></span></summary>
+        <div class="tp-acc__body">
+          <div class="tp-small tp-muted" data-i18n="kp.help"></div>
+          <ol class="tp-small sp-ol">
+            <li data-i18n-html="kp.step1"></li>
+            <li data-i18n="kp.step2"></li>
+            <li data-i18n="kp.step3"></li>
+          </ol>
+          <div class="tp-row">
+            <label class="tp-btn tp-btn--primary tp-btn--sm"><input type="file" id="kpFile" accept=".csv,.tsv,text/csv,text/tab-separated-values" hidden multiple><span data-icon="upload"></span><span data-i18n="kp.import"></span></label>
+            <a class="tp-btn tp-btn--sm" href="https://ads.google.com/aw/keywordplanner/home" target="_blank" rel="noopener"><span data-icon="external"></span><span data-i18n="kp.open"></span></a>
+            <button id="kpClear" class="tp-btn tp-btn--ghost tp-btn--sm"><span data-icon="trash"></span><span data-i18n="kp.clear"></span></button>
+          </div>
+          <div id="kpMsg" class="tp-small"></div>
+        </div>
+      </details>
       <div id="kwProgress"></div>
       <div id="kwResults"></div>
       <div id="kwDetail"></div>
-      <div class="box" id="basketBox">
-        <div class="row"><b>🧺 Panier de tags</b><span id="basketInfo" class="muted small"></span><span class="sp"></span>
-          <button class="small" id="basketCopy">Copier</button>
-          <button class="small" id="basketInsert">➕ Ajouter dans Studio</button>
-          <button class="small ghost" id="basketClear">Vider</button>
+      <div class="tp-card sp-basket" id="basketBox">
+        <div class="tp-card__head"><span data-icon="tag"></span><b data-i18n="basket.title"></b><span id="basketInfo" class="tp-counter"></span><span class="tp-grow"></span>
+          <button class="tp-btn tp-btn--ghost tp-btn--sm tp-btn--icon" id="basketCopy" data-i18n-title="common.copy"><span data-icon="copy"></span></button>
+          <button class="tp-btn tp-btn--sm" id="basketInsert"><span data-icon="upload"></span><span data-i18n="basket.insert"></span></button>
+          <button class="tp-btn tp-btn--ghost tp-btn--sm tp-btn--icon" id="basketClear" data-i18n-title="basket.clear"><span data-icon="trash"></span></button>
         </div>
-        <div id="basketChips" class="chips"></div>
+        <div class="tp-card__body"><div id="basketChips" class="tp-chips"></div></div>
       </div>
     </section>
 
     <!-- ================= CONCURRENTS ================= -->
-    <section id="tab-competitors" class="tab">
-      <div class="box">
-        <div class="row">
-          <input id="compIn" placeholder="@chaîne, lien de chaîne ou ID UC…">
-          <button id="compAdd">➕ Suivre</button>
+    <section id="tab-competitors" class="sp-tab">
+      <div class="tp-card">
+        <div class="tp-card__body">
+          <div class="tp-inputgroup">
+            <input id="compIn" class="tp-input" data-i18n-ph="comp.addPh">
+            <button id="compAdd" class="tp-btn tp-btn--primary"><span data-icon="plus"></span><span data-i18n="comp.follow"></span></button>
+          </div>
+          <div id="compList" class="tp-list"></div>
         </div>
-        <div id="compList"></div>
       </div>
-      <div class="box">
-        <div class="row"><b>Vidéos récentes qui surperforment</b><span class="sp"></span><button id="compRefresh" class="small">🔄 Actualiser</button></div>
-        <div id="compVideos" class="small muted">Ajoutez des chaînes concurrentes puis « Actualiser » (3 unités de quota par chaîne).</div>
+      <div class="tp-card">
+        <div class="tp-card__head"><span data-icon="flame"></span><b data-i18n="comp.outliers"></b><span class="tp-grow"></span><button id="compRefresh" class="tp-btn tp-btn--sm"><span data-icon="refresh"></span><span data-i18n="comp.refresh"></span></button></div>
+        <div class="tp-card__body"><div id="compVideos" class="tp-list"></div></div>
       </div>
       <div id="compInsights"></div>
     </section>
 
     <!-- ================= TENDANCES ================= -->
-    <section id="tab-trends" class="tab">
-      <div class="box">
-        <div class="grid3 small">
-          <label>Pays<select id="trGl"></select></label>
-          <label>Catégorie
-            <select id="trCat">
-              <option value="10">Musique</option>
-              <option value="0">Toutes</option>
-              <option value="24">Divertissement</option>
-              <option value="22">Vlogs / blogs</option>
-              <option value="20">Jeux vidéo</option>
-              <option value="27">Éducation</option>
-              <option value="17">Sport</option>
-              <option value="23">Humour</option>
-            </select>
-          </label>
-          <button id="trGo" class="primary">Charger</button>
+    <section id="tab-trends" class="sp-tab">
+      <div class="tp-card">
+        <div class="tp-card__body">
+          <div class="sp-grid3">
+            <label class="tp-field"><span class="tp-label" data-i18n="kw.country"></span><select id="trGl" class="tp-select"></select></label>
+            <label class="tp-field"><span class="tp-label" data-i18n="trends.category"></span>
+              <select id="trCat" class="tp-select">
+                <option value="10" data-i18n="cat.music"></option>
+                <option value="0" data-i18n="cat.all"></option>
+                <option value="24" data-i18n="cat.entertainment"></option>
+                <option value="22" data-i18n="cat.people"></option>
+                <option value="20" data-i18n="cat.gaming"></option>
+                <option value="27" data-i18n="cat.education"></option>
+                <option value="17" data-i18n="cat.sports"></option>
+                <option value="23" data-i18n="cat.comedy"></option>
+              </select>
+            </label>
+            <button id="trGo" class="tp-btn tp-btn--primary sp-alignend"><span data-icon="trending"></span><span data-i18n="trends.load"></span></button>
+          </div>
         </div>
       </div>
-      <div id="trResults"></div>
+      <div id="trResults" class="tp-stack"></div>
     </section>
 
     <!-- ================= HISTORIQUE ================= -->
-    <section id="tab-history" class="tab">
+    <section id="tab-history" class="sp-tab">
       <div id="histList"></div>
     </section>
   </main>
 
-  <footer id="status" class="tiny muted"></footer>
+  <div class="sp-actions tp-hidden" id="actionBar">
+    <button class="tp-btn tp-btn--primary" data-act="insAll"><span data-icon="check"></span><span data-i18n="result.applyAll"></span></button>
+    <button class="tp-btn" data-act="regen" data-i18n-title="studio.regenHint"><span data-icon="refresh"></span><span data-i18n="studio.regen"></span></button>
+  </div>
+  <footer id="status" class="sp-foot"></footer>
+  <script src="../lib/icons.js"></script>
   <script type="module" src="sidepanel.js"></script>
 </body>
 </html>

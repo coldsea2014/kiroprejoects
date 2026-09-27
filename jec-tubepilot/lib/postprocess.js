@@ -1,7 +1,8 @@
-// JEC TubePilot — assemblage final : titres notés, description avec chapitres valides, tags ≤ 500, hashtags, contrôle du règlement
+// TubePilot — assemblage final : titres notés, description avec chapitres valides, tags ≤ 500, hashtags, contrôle du règlement
 (function (g) {
   'use strict';
   const F = g.TPF, P = g.TPPolicy, S = g.TPSeo;
+  const T = (k, v) => (g.TPI18n ? g.TPI18n.t(k, v) : k);
 
   const LABELS = {
     ar: { chapters: '⏱️ التوقيتات', hot: ' — 🔥 أقوى اللحظات', lyrics: '🎤 كلمات الأغنية', intro: 'مقدمة' },
@@ -17,7 +18,9 @@
     const song = String(analysis?.language_code || '').slice(0, 2).toLowerCase();
     if (LABELS[song]) return song;
     const first = String(splitList(ctx.profile?.languages || '')[0] || '').split(/\s+/)[0].slice(0, 2).toLowerCase();
-    return LABELS[first] ? first : 'fr';
+    if (LABELS[first]) return first;
+    const ui = g.TPI18n?.lang?.();
+    return LABELS[ui] ? ui : 'en';
   };
 
   // Meilleurs moments → marqués 🔥 dans la timeline (fusionnés avec le chapitre le plus proche s'il est à moins de 10 s)
@@ -57,13 +60,13 @@
       if (!text || seen.has(k)) continue;
       seen.add(k);
       const sc = S.scoreTitle(text, sctx);
-      out.push({ text, hook: (typeof t === 'object' && t.hook_type) || sc.hooks[0] || '', angle: (typeof t === 'object' && t.angle) || '', score: sc.score, parts: sc.parts, issues: sc.issues });
+      out.push({ text, hook: (typeof t === 'object' && t.hook_type) || (sc.hooks[0] ? T('hook.' + sc.hooks[0]) : ''), angle: (typeof t === 'object' && t.angle) || '', score: sc.score, parts: sc.parts, issues: sc.issues });
     }
     return out.sort((a, b) => b.score - a.score);
   }
 
   function assembleDescription({ intro, body, lyrics, chapters, cta, signature, hashtags }, lang) {
-    const L = LABELS[lang] || LABELS.fr;
+    const L = LABELS[lang] || LABELS.en;
     const join = (b) => [
       String(intro || '').trim(),
       b,
@@ -174,13 +177,13 @@
     const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
     if (fence) s = fence[1];
     const a = s.indexOf('{'), b = s.lastIndexOf('}');
-    if (a < 0 || b <= a) throw new Error('Aucun JSON trouvé : copiez toute la réponse de Gemini (le bloc de code).');
+    if (a < 0 || b <= a) throw new Error(T('err.noJson'));
     let obj;
     try { obj = JSON.parse(s.slice(a, b + 1)); } catch (e) {
-      try { obj = JSON.parse(s.slice(a, b + 1).replace(/,\s*([}\]])/g, '$1')); } catch (e2) { throw new Error('JSON incomplet ou abîmé : demandez à Gemini « renvoie le JSON complet » puis recollez.'); }
+      try { obj = JSON.parse(s.slice(a, b + 1).replace(/,\s*([}\]])/g, '$1')); } catch (e2) { throw new Error(T('err.badJson')); }
     }
     const seo = obj.seo || (obj.titles ? obj : null);
-    if (!seo || !Array.isArray(seo.titles)) throw new Error('Ce JSON ne contient pas de titres (clé « seo.titles »).');
+    if (!seo || !Array.isArray(seo.titles)) throw new Error(T('err.noTitlesJson'));
     return { analysis: obj.analysis || null, seo };
   }
 

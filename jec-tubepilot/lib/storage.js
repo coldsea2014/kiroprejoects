@@ -1,17 +1,17 @@
-// JEC TubePilot — réglages, profils de chaînes, cache et fiches SEO (chrome.storage.local)
+// TubePilot — réglages, profils de chaînes, cache et fiches SEO (chrome.storage.local)
 
 export const DEFAULT_PROFILE = {
   id: 'default',
-  name: 'Ma chaîne',
+  name: 'My channel',
   channelId: '',
   handle: '',
   artistName: '',
-  niche: 'Musique du monde',
+  niche: 'World music',
   genre: '',
-  languages: 'ar, fr',
-  country: 'MA',
+  languages: '',
+  country: '',
   audience: '',
-  tone: 'émotionnel, authentique',
+  tone: '',
   aiGenerated: false,
   officialArtist: false,
   signature: '',
@@ -73,7 +73,7 @@ export function pickProfile(settings, channelId) {
   return list.find((x) => x.id === settings.activeProfile) || list[0] || DEFAULT_PROFILE;
 }
 
-export const profileLanguages = (p) => String(p?.languages || 'fr').split(/[,;\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+export const profileLanguages = (p) => String(p?.languages || globalThis.TPI18n?.lang?.() || 'en').split(/[,;\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
 
 /* ---------- Cache ---------- */
 export async function cacheGet(key, maxAgeMs) {
@@ -87,11 +87,24 @@ export async function cacheSet(key, value) {
   await area().set({ ['c:' + key]: { ts: Date.now(), v: value } });
 }
 
+// YouTube API data is never kept more than 30 days (YouTube API Services developer policies)
+export const YT_DATA_MAX_AGE = 30 * 86400000;
+
 export async function pruneCache(maxAgeMs = 7 * 86400000) {
   const all = await area().get(null);
-  const old = Object.keys(all).filter((k) => k.startsWith('c:') && Date.now() - (all[k]?.ts || 0) > maxAgeMs);
+  const now = Date.now();
+  const old = Object.keys(all).filter((k) => k.startsWith('c:') && now - (all[k]?.ts || 0) > maxAgeMs);
+  if (all.compCache && now - (all.compCache.ts || 0) > YT_DATA_MAX_AGE) old.push('compCache');
   if (old.length) await area().remove(old);
-  return old.length;
+  // old analyses keep their SEO text but lose the YouTube statistics (competitor videos, views, subscribers)
+  const stale = {};
+  for (const [k, p] of Object.entries(all)) {
+    if (!k.startsWith('pack:') || !p || now - (p.createdAt || 0) <= YT_DATA_MAX_AGE) continue;
+    if (!p.competition && !p.keywords?.compared?.length) continue;
+    stale[k] = { ...p, competition: null, keywords: p.keywords ? { ...p.keywords, compared: [] } : null };
+  }
+  if (Object.keys(stale).length) await area().set(stale);
+  return old.length + Object.keys(stale).length;
 }
 
 /* ---------- Quota YouTube Data API (10 000 unités/jour, remis à zéro à minuit heure du Pacifique) ---------- */

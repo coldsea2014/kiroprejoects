@@ -1,0 +1,11 @@
+{
+  "appName": {
+    "message": "TubePilot — سيو وعلامات ذكية للكليبات الموسيقية"
+  },
+  "appDesc": {
+    "message": "يستمع Gemini إلى أغانيك: عناوين جذابة، توقيتات لأفضل اللحظات، علامات، هاشتاغات رائجة، وتعبئة تلقائية في YouTube Studio."
+  },
+  "actionTitle": {
+    "message": "TubePilot — فتح لوحة السيو"
+  }
+}

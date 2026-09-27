@@ -1,4 +1,5 @@
-// JEC TubePilot — préparation du média sur l'ordinateur : durée, format, extraction audio (WAV 16 kHz mono) et tempo (BPM)
+// TubePilot — préparation du média sur l'ordinateur : durée, format, extraction audio (WAV 16 kHz mono) et tempo (BPM)
+import { t } from './lang.js';
 
 const GEMINI_VIDEO = /^video\/(mp4|mpeg|mov|quicktime|avi|x-msvideo|x-flv|mpg|webm|wmv|x-ms-wmv|3gpp)$/i;
 const GEMINI_AUDIO = /^audio\/(wav|x-wav|mp3|mpeg|aiff|x-aiff|aac|ogg|flac|x-flac|mp4|m4a|x-m4a|webm)$/i;
@@ -32,7 +33,7 @@ export function probe(file, timeoutMs = 10000) {
 
 // Décode la piste audio (mp4, webm, mov, mp3, wav…) directement à 16 kHz pour limiter la mémoire
 export async function decodeAudio(file, maxBytes = 450 * 1024 * 1024) {
-  if (file.size > maxBytes) throw new Error('Fichier trop lourd pour extraire l\'audio sur l\'ordinateur.');
+  if (file.size > maxBytes) throw new Error(t('media.tooHeavy'));
   const ctx = new AudioContext({ sampleRate: 16000 });
   try {
     return await ctx.decodeAudioData(await file.arrayBuffer());
@@ -132,16 +133,16 @@ export async function prepare(file, { mode = 'auto', onStep } = {}) {
       bpm = estimateBpm(samples);
       if (!info.duration) info.duration = buf.duration;
     } catch (e) {
-      if (wantAudio && !geminiReadable(file)) throw new Error('Format non lu par Chrome ni par Gemini : exportez la vidéo en MP4 ou l\'audio en MP3/WAV.');
+      if (wantAudio && !geminiReadable(file)) throw new Error(t('media.unreadable'));
       wantAudio = false;
     }
   } else if (wantAudio && !geminiReadable(file)) {
-    throw new Error('Fichier trop long ou trop lourd pour être converti : exportez l\'audio en MP3 (ou la vidéo en MP4) et réessayez.');
+    throw new Error(t('media.tooLong'));
   }
   if (wantAudio && samples) {
     return { blob: wavBlob(samples), mime: 'audio/wav', kind: 'audio', info, bpm, displayName: file.name.replace(/\.[^.]+$/, '') + '.wav' };
   }
-  if (!geminiReadable(file)) throw new Error(`Format « ${mime || file.name} » non accepté par Gemini : utilisez MP4, MOV, WEBM, MP3 ou WAV.`);
+  if (!geminiReadable(file)) throw new Error(t('media.badFormat', { fmt: mime || file.name }));
   return { blob: file, mime: mime.startsWith('audio/') || mime.startsWith('video/') ? mime : 'video/mp4', kind: audioOnly ? 'audio' : 'video', info, bpm, displayName: file.name };
 }
 
@@ -158,5 +159,5 @@ export async function prepareChatAudio(file) {
     } catch (e) { /* format non lu par Chrome */ }
   }
   if (isAudio(file) && file.size <= 40 * 1024 * 1024) return { blob: file, name: file.name, info, bpm: null };
-  throw new Error('Impossible d\'extraire l\'audio de cette vidéo (trop longue, trop lourde ou format non lu). Publiez-la en public/non répertoriée pour l\'analyse par lien, ou choisissez le MP3.');
+  throw new Error(t('media.noAudio'));
 }

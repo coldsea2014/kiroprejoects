@@ -1,7 +1,11 @@
-// JEC TubePilot — service worker : panneau latéral, messages des pages YouTube, installation
+// TubePilot — service worker : panneau latéral, messages des pages YouTube, installation
+import { t, I18n } from '../lib/lang.js';
 import { pruneCache, getCompetitors, setCompetitors } from '../lib/storage.js';
 import { suggest } from '../lib/keywords.js';
 import * as YT from '../lib/ytapi.js';
+
+I18n.init();
+chrome.storage.onChanged.addListener((c, area) => { if (area === 'local' && c.settings) I18n.init(); });
 
 const panelOnClick = () => chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
@@ -20,6 +24,7 @@ async function injectOpenTabs() {
 chrome.runtime.onInstalled.addListener(async (d) => {
   panelOnClick();
   if (d.reason === 'install') chrome.runtime.openOptionsPage();
+  pruneCache().catch(() => {});
   injectOpenTabs();
 });
 
@@ -30,7 +35,7 @@ chrome.runtime.onStartup.addListener(() => {
 
 async function addCompetitor(input) {
   const c = await YT.resolveChannel(input);
-  if (!c) throw new Error('Chaîne introuvable.');
+  if (!c) throw new Error(t('comp.notFound'));
   const list = await getCompetitors();
   if (!list.some((x) => x.id === c.id)) list.push({ id: c.id, title: c.title, handle: c.handle, thumb: c.thumb, subs: c.subs, uploads: c.uploads, addedAt: Date.now() });
   await setCompetitors(list);

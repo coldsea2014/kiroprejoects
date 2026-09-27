@@ -1,11 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import '../lib/locales/en.js';
+import '../lib/locales/fr.js';
+import '../lib/locales/ar.js';
+import '../lib/i18n.js';
 import '../lib/format.js';
 import '../lib/policy.js';
 import '../lib/seo.js';
 import '../lib/postprocess.js';
 import '../lib/jsonparse.js';
 
+globalThis.TPI18n.setLang('en');
 const F = globalThis.TPF, P = globalThis.TPPolicy, S = globalThis.TPSeo, Post = globalThis.TPPost;
 
 test('format : durées, horodatages, nombres', () => {
@@ -14,8 +19,8 @@ test('format : durées, horodatages, nombres', () => {
   assert.equal(F.parseTs('1:02:03'), 3723);
   assert.equal(F.parseTs('02:05'), 125);
   assert.equal(F.isoDur('PT1H2M3S'), 3723);
-  assert.equal(F.num(1234), '1,2 k');
-  assert.equal(F.num(3400000), '3,4 M');
+  assert.equal(F.num(1234), '1.2K');
+  assert.equal(F.num(3400000), '3.4M');
 });
 
 test('format : horodatage de chapitre 00:05', () => {
@@ -85,9 +90,9 @@ test('seo : score de titre et accroches', () => {
   const good = S.scoreTitle('قولها ليا 💔 أغنية مغربية حزينة للي فارق حبيبو', { keyword: 'أغنية مغربية حزينة' });
   const bad = S.scoreTitle('video', { keyword: 'أغنية مغربية حزينة' });
   assert.ok(good.score > bad.score + 30, `${good.score} vs ${bad.score}`);
-  assert.ok(good.hooks.includes('émotion'));
+  assert.ok(good.hooks.includes('emotion'));
   assert.ok(S.detectHooks('Why nobody talks about this?').includes('question'));
-  assert.ok(S.detectHooks('Why nobody talks about this?').includes('curiosité'));
+  assert.ok(S.detectHooks('Why nobody talks about this?').includes('curiosity'));
   const caps = S.scoreTitle('THE BEST SONG EVER MADE IN THE WORLD', {});
   assert.ok(caps.score < 70);
 });

@@ -1,0 +1,11 @@
+{
+  "appName": {
+    "message": "TubePilot — AI SEO & Tags for Music Videos"
+  },
+  "appDesc": {
+    "message": "Gemini listens to your songs: hook titles, 00:00 timeline of the best moments, tags, trending hashtags, auto-fill in YouTube Studio."
+  },
+  "actionTitle": {
+    "message": "TubePilot — open the SEO panel"
+  }
+}

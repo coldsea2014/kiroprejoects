@@ -99,9 +99,9 @@ watch(opt, 'options');
 await opt.goto(`chrome-extension://${extId}/options/options.html`);
 await opt.evaluate(() => chrome.storage.local.set({ settings: { aiEngine: 'api', geminiKey: 'AIzaTEST', modelMain: 'gemini-9-pro', modelFast: 'gemini-9-flash', models: [{ id: 'gemini-9-pro', label: 'Gemini 9 Pro' }], competitorLookup: false, autopilot: true, autofill: true, profiles: [{ id: 'default', name: 'Chaîne test', channelId: 'UCabcdefghijklmnopqrstuv', languages: 'ar, fr', country: 'MA', niche: 'Musique marocaine', genre: 'chaabi', aiGenerated: true, signature: 'Instagram : https://instagram.com/test' }], activeProfile: 'default' } }));
 await opt.reload();
-await opt.waitForSelector('.profile');
+await opt.waitForSelector('.op-profile');
 await opt.screenshot({ path: path.join(shots, '1-options.png'), fullPage: true });
-log('réglages OK — profils :', await opt.locator('.profile').count());
+log('réglages OK — profils :', await opt.locator('.op-profile').count());
 
 // 2. YouTube Studio : import d'un fichier → pilote automatique
 const studio = await ctx.newPage();
@@ -123,10 +123,21 @@ if (!/00:12 🔥 اللازمة/.test(res.description)) errors.push('description
 if (!res.description.includes('instagram.com/test')) errors.push('signature absente');
 log('envoi à Gemini :', uploaded, 'octets · appels generateContent :', geminiCalls);
 await studio.waitForTimeout(600);
-await studio.screenshot({ path: path.join(studio.constructor ? shots : shots, '2-studio.png'), fullPage: true });
+await studio.screenshot({ path: path.join(shots, '2-studio.png'), fullPage: true });
+await studio.locator('#tp-studio-card').screenshot({ path: path.join(shots, '2b-studio-card.png') });
+// la carte est entre le titre et la description, sans les chevaucher (bug de la v4.2)
+const geo = await studio.evaluate(() => {
+  const r = (el) => el.getBoundingClientRect();
+  const card = r(document.querySelector('#tp-studio-card'));
+  const title = r(document.querySelector('ytcp-video-title'));
+  const desc = r(document.querySelector('#description-textarea'));
+  return { cardTop: card.top, cardBottom: card.bottom, titleBottom: title.bottom, descTop: desc.top, h: card.height };
+});
+if (!(geo.h > 80 && geo.cardTop >= geo.titleBottom - 1 && geo.cardBottom <= geo.descTop + 1)) errors.push('carte Studio mal placée : ' + JSON.stringify(geo));
+log('carte placée entre titre et description :', JSON.stringify(geo));
 
 // clic sur un autre titre proposé
-await studio.locator('#tp-studio-card').locator('.tp-title').nth(1).click();
+await studio.locator('#tp-studio-card').locator('.tp-item[data-act=title]').nth(1).click();
 await studio.waitForTimeout(400);
 log('titre après clic :', await studio.evaluate(() => document.querySelector('#title-textarea #textbox').textContent));
 
@@ -136,7 +147,7 @@ watch(studio2, 'studio2');
 await studio2.goto('https://studio.youtube.com/channel/UCabcdefghijklmnopqrstuv/videos/upload');
 await studio2.setInputFiles('#picker', { name: 'autre-chanson.wav', mimeType: 'audio/wav', buffer: wav() });
 await studio2.evaluate(() => { const t = document.querySelector('#title-textarea #textbox'); t.focus(); document.execCommand('selectAll'); document.execCommand('insertText', false, 'Mon titre à moi'); });
-await studio2.waitForFunction(() => document.querySelector('#tp-studio-card')?.shadowRoot?.querySelector('.tp-title'), null, { timeout: 30000 });
+await studio2.waitForFunction(() => document.querySelector('#tp-studio-card')?.shadowRoot?.querySelector('.tp-item[data-act=title]'), null, { timeout: 30000 });
 await studio2.waitForTimeout(800);
 const kept = await studio2.evaluate(() => document.querySelector('#title-textarea #textbox').textContent);
 if (kept !== 'Mon titre à moi') errors.push('titre de l\'utilisateur remplacé : ' + kept);
@@ -146,11 +157,12 @@ await studio2.close();
 // 3. Panneau latéral (ouvert comme une page)
 const panel = await ctx.newPage();
 watch(panel, 'panel');
+await panel.setViewportSize({ width: 420, height: 900 });
 await panel.goto(`chrome-extension://${extId}/sidepanel/sidepanel.html`);
-await panel.waitForSelector('#titles .tt', { timeout: 10000 });
+await panel.waitForSelector('#titles .tp-item', { timeout: 10000 });
 await panel.screenshot({ path: path.join(shots, '3-panel.png'), fullPage: true });
-log('panneau : titres', await panel.locator('#titles .tt').count(), '· score', await panel.locator('#scoreHead .sc').first().textContent());
-for (const t of ['competitors', 'trends', 'history', 'video', 'keywords']) await panel.click(`.tabs button[data-tab="${t}"]`);
+log('panneau : titres', await panel.locator('#titles .tp-item').count(), '· score', await panel.locator('.sp-scorecard .tp-ring text').first().textContent());
+for (const t of ['competitors', 'trends', 'history', 'video', 'keywords']) await panel.click(`.sp-navbtn[data-tab="${t}"]`);
 await panel.fill('#kwSeed', 'شعبي مغربي');
 await panel.click('#kwGo');
 await panel.waitForSelector('#kwResults table', { timeout: 10000 });
@@ -204,6 +216,26 @@ await yt.waitForSelector('#tp-watch-card', { timeout: 10000 });
 await yt.waitForTimeout(500);
 await yt.screenshot({ path: path.join(shots, '5-watch.png') });
 log('carte page vidéo OK');
+
+// 5. Thème sombre et interface en arabe (RTL)
+await opt.evaluate(async () => { const { settings } = await chrome.storage.local.get('settings'); await chrome.storage.local.set({ settings: { ...settings, uiLang: 'ar' } }); });
+for (const [page, name] of [[panel, '7-panel-ar-dark'], [opt, '8-options-ar-dark']]) {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.reload();
+  await page.waitForTimeout(700);
+  const dir = await page.evaluate(() => document.documentElement.dir);
+  if (dir !== 'rtl') errors.push(`${name} : direction ${dir} au lieu de rtl`);
+  await page.screenshot({ path: path.join(shots, name + '.png'), fullPage: name.startsWith('8') ? false : true });
+}
+const studioAr = await ctx.newPage();
+watch(studioAr, 'studio-ar');
+await studioAr.emulateMedia({ colorScheme: 'dark' });
+await studioAr.goto('https://studio.youtube.com/channel/UCabcdefghijklmnopqrstuv/videos/upload');
+await studioAr.setInputFiles('#picker', { name: 'قُولْهَا-لِيَّا [usesuno.com].wav', mimeType: 'audio/wav', buffer: wav() });
+await studioAr.waitForFunction(() => document.querySelector('#tp-studio-card')?.shadowRoot?.querySelector('.tp-item[data-act=title]'), null, { timeout: 30000 });
+await studioAr.waitForTimeout(500);
+await studioAr.locator('#tp-studio-card').screenshot({ path: path.join(shots, '9-studio-card-ar.png') });
+log('captures sombre / arabe OK');
 
 await ctx.close();
 if (errors.length) { console.error('ERREURS :\n' + errors.join('\n')); process.exit(1); }

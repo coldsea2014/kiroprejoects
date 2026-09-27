@@ -1,6 +1,8 @@
-// JEC TubePilot — recherche de mots-clés : suggestions réelles de la recherche YouTube + concurrence (API officielle)
+// TubePilot — recherche de mots-clés : suggestions réelles de la recherche YouTube + concurrence (API officielle)
+import { t } from './lang.js';
 import { cacheGet, cacheSet } from './storage.js';
 import { searchTop } from './ytapi.js';
+import { kpLookup, volMid, volLabel } from './kpimport.js';
 import './format.js';
 import './policy.js';
 import './seo.js';
@@ -16,7 +18,7 @@ export async function suggest(q, { hl = 'fr', gl = '' } = {}) {
   if (hit) return hit;
   const url = `https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&ie=utf-8&oe=utf-8&hl=${encodeURIComponent(hl)}${gl ? '&gl=' + encodeURIComponent(gl) : ''}&q=${encodeURIComponent(query)}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error('Suggestions YouTube indisponibles (' + res.status + ')');
+  if (!res.ok) throw new Error(t('kw.suggestDown', { status: res.status }));
   const data = JSON.parse(await res.text());
   const list = (Array.isArray(data?.[1]) ? data[1] : []).map((x) => (Array.isArray(x) ? x[0] : x)).filter((x) => typeof x === 'string');
   await cacheSet(ck, list);
@@ -75,8 +77,25 @@ export async function research(seed, { hl = 'fr', gl = '', deep = true, onProgre
     map.set(seedKey, { kw: seed, hits: 1, rankSum: n / 10, bestRank: 0, directRank: n >= 8 ? 0 : n >= 4 ? 3 : n ? 6 : -1 });
   }
   const items = [...map.values()].map((e) => ({ kw: e.kw, popularity: popularity(e), hits: e.hits, direct: e.directRank >= 0, words: e.kw.split(/\s+/).length }));
+  await withVolumes(items);
   items.sort((a, b) => b.popularity - a.popularity || a.words - b.words);
   return { seed, hl, gl, items, fetchedAt: Date.now() };
+}
+
+// Volumes Google Keyword Planner importés : ajoutés aux mots-clés et mêlés à la popularité (100 000 recherches/mois ≈ 100)
+export async function withVolumes(items) {
+  const kp = await kpLookup().catch(() => ({}));
+  if (!Object.keys(kp).length) return items;
+  for (const it of items) {
+    const e = kp[F.norm(it.kw)];
+    if (!e) continue;
+    it.vol = volMid(e);
+    it.volLabel = volLabel(e);
+    it.kpComp = e.comp || 0;
+    const volIdx = Math.min(100, Math.round((Math.log10(it.vol + 1) / 5) * 100));
+    it.popularity = F.clamp(Math.round(0.45 * it.popularity + 0.55 * volIdx), 1, 100);
+  }
+  return items;
 }
 
 // Concurrence d'un mot-clé sur YouTube (API officielle, ~102 unités) → demande, concurrence, score global, motifs des titres, tags
@@ -107,5 +126,5 @@ export async function competition(kw, { regionCode, relevanceLanguage, videoCate
 // Langue de recherche (hl) et pays (gl) pour chaque langue d'un profil
 export function localesFor(languages, country) {
   const gl = String(country || '').toUpperCase();
-  return (languages || ['fr']).slice(0, 3).map((l) => ({ hl: l.slice(0, 2), gl }));
+  return (languages?.length ? languages : [globalThis.TPI18n?.lang?.() || 'en']).slice(0, 3).map((l) => ({ hl: l.slice(0, 2), gl }));
 }

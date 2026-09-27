@@ -1,7 +1,8 @@
-// JEC TubePilot — règles officielles YouTube / Google appliquées aux métadonnées (titre, description, tags, hashtags, chapitres)
+// TubePilot — règles officielles YouTube / Google appliquées aux métadonnées (titre, description, tags, hashtags, chapitres)
 (function (g) {
   'use strict';
   const F = g.TPF;
+  const T = (k, v) => (g.TPI18n ? g.TPI18n.t(k, v) : k);
 
   const LIMITS = {
     title: 100,          // caractères
@@ -82,14 +83,14 @@
   function validateChapters(chapters, duration) {
     const errs = [];
     if (!chapters.length) return errs;
-    if (chapters[0].t !== 0) errs.push('Le premier chapitre doit commencer à 0:00.');
-    if (chapters.length < LIMITS.chaptersMin) errs.push(`Il faut au moins ${LIMITS.chaptersMin} horodatages pour que YouTube crée des chapitres.`);
+    if (chapters[0].t !== 0) errs.push(T('pol.ch.first'));
+    if (chapters.length < LIMITS.chaptersMin) errs.push(T('pol.ch.min', { n: LIMITS.chaptersMin }));
     for (let i = 1; i < chapters.length; i++) {
-      if (chapters[i].t <= chapters[i - 1].t) { errs.push(`Horodatages pas dans l'ordre croissant (${F.dur(chapters[i].t)}).`); break; }
-      if (chapters[i].t - chapters[i - 1].t < LIMITS.chapterMinSec) { errs.push(`Chapitre de moins de ${LIMITS.chapterMinSec} s (${F.dur(chapters[i - 1].t)} → ${F.dur(chapters[i].t)}).`); break; }
+      if (chapters[i].t <= chapters[i - 1].t) { errs.push(T('pol.ch.order', { t: F.ts(chapters[i].t) })); break; }
+      if (chapters[i].t - chapters[i - 1].t < LIMITS.chapterMinSec) { errs.push(T('pol.ch.short', { s: LIMITS.chapterMinSec, a: F.ts(chapters[i - 1].t), b: F.ts(chapters[i].t) })); break; }
     }
     const last = chapters[chapters.length - 1];
-    if (duration && last.t > duration - LIMITS.chapterMinSec) errs.push(`Le dernier chapitre (${F.dur(last.t)}) dépasse la fin de la vidéo ou dure moins de ${LIMITS.chapterMinSec} s.`);
+    if (duration && last.t > duration - LIMITS.chapterMinSec) errs.push(T('pol.ch.last', { t: F.ts(last.t), s: LIMITS.chapterMinSec }));
     return errs;
   }
 
@@ -148,44 +149,44 @@
   function checkTitle(title, ctx = {}) {
     const out = [];
     const t = String(title || '');
-    if (!t.trim()) { out.push(issue('error', 'title', 'empty', 'Titre vide.', REF.settings)); return out; }
-    if (t.length > LIMITS.title) out.push(issue('error', 'title', 'long', `Titre trop long : ${t.length}/${LIMITS.title} caractères.`, REF.settings));
-    if (/[<>]/.test(t)) out.push(issue('error', 'title', 'chars', 'Les caractères < et > sont refusés par YouTube.', REF.settings));
-    if (capsRatio(t) > 0.6) out.push(issue('warn', 'title', 'caps', 'Titre presque tout en MAJUSCULES : YouTube le considère comme racoleur. Gardez 1 ou 2 mots en capitales au plus.', REF.spam));
-    if (/[!?]{3,}/.test(t)) out.push(issue('warn', 'title', 'punct', 'Ponctuation répétée (!!!, ???) : à éviter.', REF.spam));
-    if (F.emojis(t).length > 3) out.push(issue('warn', 'title', 'emoji', `${F.emojis(t).length} emojis : 1 à 2 suffisent.`));
-    if (OFFICIAL.test(t) && !ctx.officialArtist) out.push(issue('warn', 'title', 'official', '« Officiel » seulement si c\'est la chaîne officielle de l\'artiste (sinon métadonnées trompeuses).', REF.spam));
-    if (FEAT.test(t)) out.push(issue('info', 'title', 'feat', '« feat. » : créditez uniquement un artiste réellement présent dans la chanson.', REF.spam));
-    if (SPAMMY.test(t)) out.push(issue('error', 'title', 'spam', 'Formule interdite (sub4sub, téléchargement gratuit…) : pratique trompeuse.', REF.spam));
+    if (!t.trim()) { out.push(issue('error', 'title', 'empty', T('pol.title.empty'), REF.settings)); return out; }
+    if (t.length > LIMITS.title) out.push(issue('error', 'title', 'long', T('pol.title.long', { n: t.length, max: LIMITS.title }), REF.settings));
+    if (/[<>]/.test(t)) out.push(issue('error', 'title', 'chars', T('pol.chars'), REF.settings));
+    if (capsRatio(t) > 0.6) out.push(issue('warn', 'title', 'caps', T('pol.title.caps'), REF.spam));
+    if (/[!?]{3,}/.test(t)) out.push(issue('warn', 'title', 'punct', T('pol.title.punct'), REF.spam));
+    if (F.emojis(t).length > 3) out.push(issue('warn', 'title', 'emoji', T('pol.title.emoji', { n: F.emojis(t).length })));
+    if (OFFICIAL.test(t) && !ctx.officialArtist) out.push(issue('warn', 'title', 'official', T('pol.title.official'), REF.spam));
+    if (FEAT.test(t)) out.push(issue('info', 'title', 'feat', T('pol.title.feat'), REF.spam));
+    if (SPAMMY.test(t)) out.push(issue('error', 'title', 'spam', T('pol.spam'), REF.spam));
     const year = new Date().getFullYear();
     const years = (t.match(/\b20\d{2}\b/g) || []).map(Number);
-    if (years.some((y) => y < year && !ctx.allowOldYear)) out.push(issue('info', 'title', 'year', `Année ${years.find((y) => y < year)} dans le titre : est-ce voulu ? (année en cours : ${year}).`));
+    if (years.some((y) => y < year && !ctx.allowOldYear)) out.push(issue('info', 'title', 'year', T('pol.title.year', { y: years.find((y) => y < year), cur: year })));
     const ht = extractHashtags(t);
-    if (ht.length > 3) out.push(issue('warn', 'title', 'hashtags', 'Plus de 3 hashtags dans le titre : gardez-les dans la description.', REF.hashtags));
+    if (ht.length > 3) out.push(issue('warn', 'title', 'hashtags', T('pol.title.hashtags'), REF.hashtags));
     return out;
   }
 
   function checkDescription(desc, ctx = {}) {
     const out = [];
     const d = String(desc || '');
-    if (d.length > LIMITS.description) out.push(issue('error', 'description', 'long', `Description trop longue : ${d.length}/${LIMITS.description} caractères.`, REF.settings));
-    if (/[<>]/.test(d)) out.push(issue('error', 'description', 'chars', 'Les caractères < et > sont refusés par YouTube.', REF.settings));
-    if (SPAMMY.test(d)) out.push(issue('error', 'description', 'spam', 'Formule trompeuse (sub4sub, téléchargement gratuit…).', REF.spam));
-    if (SHORTENERS.test(d)) out.push(issue('warn', 'description', 'shortener', 'Lien raccourci (bit.ly…) : YouTube préfère les liens complets et transparents.', REF.spam));
+    if (d.length > LIMITS.description) out.push(issue('error', 'description', 'long', T('pol.desc.long', { n: d.length, max: LIMITS.description }), REF.settings));
+    if (/[<>]/.test(d)) out.push(issue('error', 'description', 'chars', T('pol.chars'), REF.settings));
+    if (SPAMMY.test(d)) out.push(issue('error', 'description', 'spam', T('pol.spam'), REF.spam));
+    if (SHORTENERS.test(d)) out.push(issue('warn', 'description', 'shortener', T('pol.desc.shortener'), REF.spam));
     // bourrage : un même mot répété de façon anormale
     const toks = F.tokens(d).filter((w) => w.length > 3 && !w.startsWith('#'));
     if (toks.length > 40) {
       const freq = {};
       toks.forEach((w) => { freq[w] = (freq[w] || 0) + 1; });
       const [w, n] = Object.entries(freq).sort((a, b) => b[1] - a[1])[0] || [];
-      if (n > Math.max(8, toks.length * 0.08)) out.push(issue('warn', 'description', 'stuffing', `« ${w} » répété ${n} fois : ressemble à du bourrage de mots-clés.`, REF.spam));
+      if (n > Math.max(8, toks.length * 0.08)) out.push(issue('warn', 'description', 'stuffing', T('pol.desc.stuffing', { w, n }), REF.spam));
     }
     // liste de mots-clés en vrac (ligne de 15+ virgules)
-    if (d.split('\n').some((l) => (l.match(/,/g) || []).length >= 15)) out.push(issue('warn', 'description', 'keyword-list', 'Liste de mots-clés en vrac dans la description : interdit (mettez-les dans les tags).', REF.spam));
+    if (d.split('\n').some((l) => (l.match(/,/g) || []).length >= 15)) out.push(issue('warn', 'description', 'keyword-list', T('pol.desc.list'), REF.spam));
     const hashtags = extractHashtags(d);
-    if (hashtags.length > LIMITS.hashtagsIgnored) out.push(issue('error', 'hashtags', 'too-many', `${hashtags.length} hashtags : au-delà de ${LIMITS.hashtagsIgnored}, YouTube les ignore TOUS.`, REF.hashtags));
-    else if (hashtags.length > LIMITS.hashtagsWarn) out.push(issue('warn', 'hashtags', 'many', `${hashtags.length} hashtags : c'est du sur-marquage. Gardez 3 à 5 hashtags pertinents.`, REF.hashtags));
-    else if (d.trim() && hashtags.length === 0) out.push(issue('info', 'hashtags', 'none', 'Aucun hashtag : ajoutez-en 3 à 5 (les 3 premiers s\'affichent au-dessus du titre).', REF.hashtags));
+    if (hashtags.length > LIMITS.hashtagsIgnored) out.push(issue('error', 'hashtags', 'too-many', T('pol.ht.tooMany', { n: hashtags.length, max: LIMITS.hashtagsIgnored }), REF.hashtags));
+    else if (hashtags.length > LIMITS.hashtagsWarn) out.push(issue('warn', 'hashtags', 'many', T('pol.ht.many', { n: hashtags.length }), REF.hashtags));
+    else if (d.trim() && hashtags.length === 0) out.push(issue('info', 'hashtags', 'none', T('pol.ht.none'), REF.hashtags));
     const chapters = parseChapters(d);
     if (chapters.length) validateChapters(chapters, ctx.duration).forEach((m) => out.push(issue('warn', 'chapters', 'chapters', m, REF.chapters)));
     return out;
@@ -194,11 +195,11 @@
   function checkTags(tags) {
     const out = [];
     const len = tagsLength(tags);
-    if (len > LIMITS.tags) out.push(issue('error', 'tags', 'long', `Tags trop longs : ${len}/${LIMITS.tags} caractères.`, REF.tags));
+    if (len > LIMITS.tags) out.push(issue('error', 'tags', 'long', T('pol.tags.long', { n: len, max: LIMITS.tags }), REF.tags));
     const seen = new Set();
     for (const t of tags || []) {
       const k = F.norm(t);
-      if (seen.has(k)) { out.push(issue('info', 'tags', 'dup', `Tag en double : « ${t} ».`)); break; }
+      if (seen.has(k)) { out.push(issue('info', 'tags', 'dup', T('pol.tags.dup', { tag: t }))); break; }
       seen.add(k);
     }
     return out;
@@ -207,9 +208,9 @@
   function checkAll({ title, description, tags }, ctx = {}) {
     const out = [...checkTitle(title, ctx), ...checkDescription(description, ctx), ...checkTags(tags)];
     if (ctx.aiGenerated) {
-      out.push(issue('info', 'general', 'synthetic', 'Musique/voix générée par IA (Suno…) : si la voix ou les images sont réalistes (on pourrait croire à un vrai chanteur) ou imitent une personne réelle, cochez « Contenu modifié ou synthétique » dans Studio.', REF.synthetic));
+      out.push(issue('info', 'general', 'synthetic', T('pol.synthetic'), REF.synthetic));
     }
-    if (ctx.isCover) out.push(issue('info', 'general', 'cover', 'Reprise : créditez l\'original (titre, interprète, auteurs). Content ID peut partager ou bloquer les revenus.', REF.copyright));
+    if (ctx.isCover) out.push(issue('info', 'general', 'cover', T('pol.cover'), REF.copyright));
     return out;
   }
 

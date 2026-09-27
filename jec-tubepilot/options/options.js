@@ -1,108 +1,119 @@
-// JEC TubePilot — réglages : clés, modèles Gemini, Studio, profils de chaînes, sauvegarde
+// TubePilot — réglages : langue, moteur IA, clés, Keyword Planner, Studio, profils de chaînes, sauvegarde
+import { t, I18n } from '../lib/lang.js';
 import { getSettings, setSettings, DEFAULT_PROFILE, getCompetitors, setCompetitors, pruneCache } from '../lib/storage.js';
 import { listModels, rankModels } from '../lib/gemini.js';
 import { testKey as testYtKey } from '../lib/ytapi.js';
+import { importKeywordPlanner, kpStats, clearKeywordPlanner } from '../lib/kpimport.js';
 import '../lib/format.js';
 
-const F = globalThis.TPF;
+const F = globalThis.TPF, I = globalThis.TPIcons;
 const esc = F.esc;
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const ic = (n, s = 15) => I.icon(n, s);
 
-const SIMPLE = ['geminiKey', 'ytKey', 'mediaMode', 'titleCount', 'modelMain', 'modelFast', 'geminiUrl', 'geminiSteps', 'geminiWindow'];
+const VALUES = ['geminiKey', 'ytKey', 'mediaMode', 'titleCount', 'geminiUrl', 'geminiSteps', 'geminiWindow'];
 const CHECKS = ['geminiClose', 'deleteFiles', 'transcribeLyrics', 'competitorLookup', 'webTrends', 'autopilot', 'autofill', 'studioCard', 'tagSuggest', 'watchCard'];
-const PROFILE_FIELDS = [
-  ['name', 'Nom du profil', 'ex. DOZA MANAL'],
-  ['channelId', 'ID de la chaîne (UC…)', 'UCxxxxxxxxxxxxxxxxxxxxxx'],
-  ['handle', '@handle', '@machaine'],
-  ['artistName', 'Nom d\'artiste de la chaîne (autorisé dans titres et tags)', 'ex. DOZA MANAL'],
-  ['niche', 'Niche', 'ex. Musique du monde : khaliji, rap irakien, yéménite, RnB, jazz, chaabi…'],
-  ['genre', 'Styles publiés (Gemini détecte toujours le style de CHAQUE chanson)', 'ex. khaliji, sheilat, rap irakien, jazz, RnB, chaabi'],
-  ['languages', 'Langues des métadonnées (la 1re = titres)', 'ex. ar, fr, en'],
-  ['country', 'Pays principal du public (code)', 'ex. MA'],
-  ['audience', 'Public visé', 'ex. 18-35 ans, Maroc et diaspora, écoute le soir'],
-  ['tone', 'Ton', 'ex. émotionnel, authentique']
-];
+const PROFILE_FIELDS = ['name', 'channelId', 'handle', 'artistName', 'niche', 'genre', 'languages', 'country', 'audience', 'tone'];
 
 let settings;
-let saveT = 0;
+let saveH = 0;
 
 function flashSaved() {
   const el = $('#saved');
-  el.classList.remove('hidden');
-  clearTimeout(flashSaved.t);
-  flashSaved.t = setTimeout(() => el.classList.add('hidden'), 1200);
+  el.innerHTML = `${ic('check', 15)} ${esc(t('op.saved'))}`;
+  el.classList.remove('tp-hidden');
+  clearTimeout(flashSaved.h);
+  flashSaved.h = setTimeout(() => el.classList.add('tp-hidden'), 1300);
 }
 
 function saveSoon(patch) {
   Object.assign(settings, patch);
-  clearTimeout(saveT);
-  saveT = setTimeout(async () => { settings = await setSettings(settings); flashSaved(); }, 400);
+  clearTimeout(saveH);
+  saveH = setTimeout(async () => { settings = await setSettings(settings); flashSaved(); renderSteps(); }, 350);
 }
 
+const status = (el, ok, msg) => { el.innerHTML = `<div class="tp-alert tp-alert--${ok ? 'good' : 'danger'}">${ic(ok ? 'check' : 'alert', 14)}<span>${esc(msg)}</span></div>`; };
+
 function fillModels(models, main, fast) {
-  const opts = models.length
-    ? models.map((m) => `<option value="${esc(m.id)}">${esc(m.label || m.id)} — ${esc(m.id)}</option>`).join('')
-    : '<option value="">(testez la clé pour charger la liste)</option>';
+  const list = [...models];
+  [main, fast].forEach((id) => { if (id && !list.some((m) => m.id === id)) list.push({ id, label: id }); });
+  const opts = list.length ? list.map((m) => `<option value="${esc(m.id)}">${esc(m.label || m.id)} — ${esc(m.id)}</option>`).join('') : `<option value="">${esc(t('op.engine.testFirst'))}</option>`;
   $('#modelMain').innerHTML = opts;
   $('#modelFast').innerHTML = opts;
   if (main) $('#modelMain').value = main;
   if (fast) $('#modelFast').value = fast;
 }
 
+function syncEngine() {
+  const web = settings.aiEngine !== 'api';
+  $$('input[name=aiEngine]').forEach((r) => { r.checked = r.value === (web ? 'web' : 'api'); });
+  $('#webOpts').classList.toggle('tp-hidden', !web);
+  $('#apiOpts').classList.toggle('tp-hidden', web);
+}
+
 async function testGemini() {
   const st = $('#geminiStatus');
   const key = $('#geminiKey').value.trim();
-  if (!key) { st.innerHTML = '<span class="muted">Collez d\'abord la clé.</span>'; return; }
-  st.textContent = 'Test en cours…';
+  if (!key) return status(st, false, t('op.pasteKey'));
+  st.innerHTML = `<div class="tp-row tp-small"><span class="tp-spinner"></span>${esc(t('op.testing'))}</div>`;
   try {
     const models = await listModels(key);
-    if (!models.length) throw new Error('Aucun modèle Gemini disponible pour cette clé.');
+    if (!models.length) throw new Error(t('op.engine.noModels'));
     const r = rankModels(models);
-    const main = settings.modelMain && models.some((m) => m.id === settings.modelMain) ? settings.modelMain : r.pro || r.flash || r.all[0].id;
-    const fast = settings.modelFast && models.some((m) => m.id === settings.modelFast) ? settings.modelFast : r.flash || r.lite || main;
+    const main = models.some((m) => m.id === settings.modelMain) ? settings.modelMain : r.pro || r.flash || r.all[0].id;
+    const fast = models.some((m) => m.id === settings.modelFast) ? settings.modelFast : r.flash || r.lite || main;
     const list = r.all.map((m) => ({ id: m.id, label: m.label }));
     fillModels(list, main, fast);
     settings = await setSettings({ geminiKey: key, models: list, modelMain: main, modelFast: fast });
-    st.innerHTML = `<span class="ok">✓ Clé valide — ${models.length} modèles. Principal : <b>${esc(main)}</b> · rapide : <b>${esc(fast)}</b></span>`;
-  } catch (e) {
-    st.innerHTML = `<span style="color:var(--bad)">✘ ${esc(e.message)}</span>`;
-  }
+    status(st, true, t('op.engine.keyOk', { n: models.length, main, fast }));
+  } catch (e) { status(st, false, e.message); }
 }
 
 async function testYt() {
   const st = $('#ytStatus');
   const key = $('#ytKey').value.trim();
-  if (!key) { st.innerHTML = '<span class="muted">Collez d\'abord la clé.</span>'; return; }
-  st.textContent = 'Test en cours…';
+  if (!key) return status(st, false, t('op.pasteKey'));
+  st.innerHTML = `<div class="tp-row tp-small"><span class="tp-spinner"></span>${esc(t('op.testing'))}</div>`;
   try {
     await testYtKey(key);
     settings = await setSettings({ ytKey: key });
-    st.innerHTML = '<span class="ok">✓ Clé YouTube valide.</span>';
-  } catch (e) {
-    st.innerHTML = `<span style="color:var(--bad)">✘ ${esc(e.message)}</span>`;
-  }
+    status(st, true, t('op.yt.ok'));
+    renderSteps();
+  } catch (e) { status(st, false, e.message); }
+}
+
+/* ---------- Démarrage ---------- */
+function renderSteps() {
+  const p = settings.profiles[0] || {};
+  const done = {
+    engine: settings.aiEngine !== 'api' ? !!settings.geminiOpened : !!settings.geminiKey,
+    profile: !!(p.channelId || (p.name && p.name !== DEFAULT_PROFILE.name)),
+    yt: !!settings.ytKey,
+    studio: !!settings.studioVisited
+  };
+  $$('#steps li').forEach((li) => li.classList.toggle('done', !!done[li.dataset.step]));
 }
 
 /* ---------- Profils ---------- */
 function renderProfiles() {
-  $('#profiles').innerHTML = settings.profiles.map((p, i) => `<div class="profile" data-i="${i}">
-    <div class="row"><label class="chk"><input type="radio" name="activeProfile" value="${esc(p.id)}" ${p.id === settings.activeProfile ? 'checked' : ''}> Profil par défaut</label><span class="sp"></span>
-      ${settings.profiles.length > 1 ? `<button class="small ghost" data-del="${i}">🗑️ Supprimer</button>` : ''}</div>
-    <div class="grid2">${PROFILE_FIELDS.map(([k, label, ph]) => `<label>${label}<input data-f="${k}" value="${esc(p[k] || '')}" placeholder="${esc(ph)}"></label>`).join('')}</div>
-    <label class="chk"><input type="checkbox" data-f="aiGenerated" ${p.aiGenerated ? 'checked' : ''}> Musique / voix créées avec l'IA (Suno, Udio…) — rappel de la mention « contenu synthétique »</label>
-    <label class="chk"><input type="checkbox" data-f="officialArtist" ${p.officialArtist ? 'checked' : ''}> Chaîne officielle de l'artiste (autorise « officiel » dans les titres)</label>
-    <label>Bloc de signature ajouté à chaque description (liens, réseaux, crédits)<textarea data-f="signature" rows="3" placeholder="🎧 Écouter sur Spotify : https://…&#10;📸 Instagram : https://…">${esc(p.signature || '')}</textarea></label>
-    <div class="grid2">
-      <label>Tags toujours ajoutés (séparés par des virgules)<input data-f="defaultTags" value="${esc(p.defaultTags || '')}"></label>
-      <label>Hashtags de la chaîne<input data-f="defaultHashtags" value="${esc(p.defaultHashtags || '')}" placeholder="#machaine"></label>
+  $('#profileList').innerHTML = settings.profiles.map((p, i) => `<div class="op-profile" data-i="${i}">
+    <div class="tp-row"><label class="tp-switch"><input type="radio" name="activeProfile" value="${esc(p.id)}" ${p.id === settings.activeProfile ? 'checked' : ''}><span class="tp-switch__text"><b>${esc(p.name || t('op.profiles.unnamed'))}</b><span class="tp-help">${esc(t('op.profiles.default'))}</span></span></label><span class="tp-grow"></span>
+      ${settings.profiles.length > 1 ? `<button class="tp-btn tp-btn--ghost tp-btn--sm" data-del="${i}">${ic('trash', 13)} ${esc(t('common.remove'))}</button>` : ''}</div>
+    <div class="op-grid2">${PROFILE_FIELDS.map((k) => `<label class="tp-field"><span class="tp-label">${esc(t('op.pf.' + k))}</span><input class="tp-input" data-f="${k}" value="${esc(p[k] || '')}" placeholder="${esc(t('op.pf.' + k + 'Ph'))}"></label>`).join('')}</div>
+    <label class="tp-switch"><input type="checkbox" data-f="aiGenerated" ${p.aiGenerated ? 'checked' : ''}><span class="tp-switch__text"><span>${esc(t('op.pf.aiGenerated'))}</span><span class="tp-help">${esc(t('op.pf.aiGeneratedHelp'))}</span></span></label>
+    <label class="tp-switch"><input type="checkbox" data-f="officialArtist" ${p.officialArtist ? 'checked' : ''}><span class="tp-switch__text"><span>${esc(t('op.pf.officialArtist'))}</span></span></label>
+    <label class="tp-field"><span class="tp-label">${esc(t('op.pf.signature'))}</span><textarea class="tp-textarea" data-f="signature" rows="3" placeholder="${esc(t('op.pf.signaturePh'))}">${esc(p.signature || '')}</textarea></label>
+    <div class="op-grid2">
+      <label class="tp-field"><span class="tp-label">${esc(t('op.pf.defaultTags'))}</span><input class="tp-input" data-f="defaultTags" value="${esc(p.defaultTags || '')}"></label>
+      <label class="tp-field"><span class="tp-label">${esc(t('op.pf.defaultHashtags'))}</span><input class="tp-input" data-f="defaultHashtags" value="${esc(p.defaultHashtags || '')}" placeholder="#mychannel"></label>
     </div>
-    <label>Notes pour Gemini (règles propres à la chaîne)<textarea data-f="notes" rows="2" placeholder="ex. Toujours écrire les titres en darija avec l'écriture arabe ; jamais de nom d'artiste">${esc(p.notes || '')}</textarea></label>
+    <label class="tp-field"><span class="tp-label">${esc(t('op.pf.notes'))}</span><textarea class="tp-textarea" data-f="notes" rows="2" placeholder="${esc(t('op.pf.notesPh'))}">${esc(p.notes || '')}</textarea></label>
   </div>`).join('');
 }
 
 function onProfileInput(e) {
-  const box = e.target.closest('.profile');
+  const box = e.target.closest('.op-profile');
   const f = e.target.dataset.f;
   if (!box || !f) return;
   const i = +box.dataset.i;
@@ -112,33 +123,56 @@ function onProfileInput(e) {
   saveSoon({ profiles });
 }
 
-/* ---------- Démarrage ---------- */
+/* ---------- Keyword Planner ---------- */
+async function renderKp() {
+  const st = await kpStats();
+  $('#kpState').textContent = st.total ? t('kp.state', { n: st.total.toLocaleString(I18n.locale()) }) : '';
+}
+
+/* ---------- Démarrage de la page ---------- */
 (async function init() {
   settings = await getSettings();
-  SIMPLE.forEach((k) => { const el = $('#' + k); if (el && k !== 'modelMain' && k !== 'modelFast') el.value = settings[k] ?? ''; });
-  CHECKS.forEach((k) => { $('#' + k).checked = !!settings[k]; });
-  fillModels(settings.models || [], settings.modelMain, settings.modelFast);
-  renderProfiles();
+  I18n.setLang(settings.uiLang || 'auto');
+  I18n.apply(document);
+  document.title = 'TubePilot — ' + t('common.settings');
+  $('#logo').innerHTML = I.logo(34);
+  $$('[data-icon]').forEach((el) => el.insertAdjacentHTML('afterbegin', ic(el.dataset.icon, 16)));
+  $('#uiLang').innerHTML = `<option value="auto">${esc(t('op.langAuto'))}</option>` + Object.entries(I18n.NAMES).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+  $('#uiLang').value = settings.uiLang || 'auto';
+  $('#version').textContent = 'v' + chrome.runtime.getManifest().version;
+  $('#docLink').href = chrome.runtime.getURL('docs/index.html');
+  $('#privacyLink').href = chrome.runtime.getURL('docs/privacy.html');
 
+  VALUES.forEach((k) => { const el = $('#' + k); if (el) el.value = settings[k] ?? ''; });
+  CHECKS.forEach((k) => { const el = $('#' + k); if (el) el.checked = !!settings[k]; });
+  fillModels(settings.models || [], settings.modelMain, settings.modelFast);
+  syncEngine();
+  renderProfiles();
+  renderSteps();
+  renderKp();
+
+  $('#uiLang').addEventListener('change', async (e) => { settings = await setSettings({ uiLang: e.target.value }); location.reload(); });
+  $$('input[name=aiEngine]').forEach((r) => r.addEventListener('change', () => { saveSoon({ aiEngine: r.value }); syncEngine(); }));
   ['mediaMode', 'titleCount', 'modelMain', 'modelFast', 'geminiSteps', 'geminiWindow'].forEach((k) => $('#' + k).addEventListener('change', (e) => saveSoon({ [k]: k === 'titleCount' || k === 'geminiSteps' ? +e.target.value : e.target.value })));
-  $$('input[name=aiEngine]').forEach((r) => { r.checked = r.value === (settings.aiEngine === 'api' ? 'api' : 'web'); r.addEventListener('change', () => saveSoon({ aiEngine: r.value })); });
   $('#geminiUrl').addEventListener('change', (e) => {
     const v = e.target.value.trim();
     if (v && !/^https:\/\/gemini\.google\.com\//.test(v)) { e.target.value = settings.geminiUrl; return; }
     saveSoon({ geminiUrl: v || 'https://gemini.google.com/app' });
   });
-  $('#geminiKey').addEventListener('change', (e) => saveSoon({ geminiKey: e.target.value.trim(), modelMain: settings.modelMain, modelFast: settings.modelFast }));
+  $('#geminiKey').addEventListener('change', (e) => saveSoon({ geminiKey: e.target.value.trim() }));
   $('#ytKey').addEventListener('change', (e) => saveSoon({ ytKey: e.target.value.trim() }));
-  CHECKS.forEach((k) => $('#' + k).addEventListener('change', (e) => saveSoon({ [k]: e.target.checked })));
+  CHECKS.forEach((k) => $('#' + k)?.addEventListener('change', (e) => saveSoon({ [k]: e.target.checked })));
   $('#testGemini').addEventListener('click', testGemini);
   $('#testYt').addEventListener('click', testYt);
+  $('#openGem').addEventListener('click', () => { chrome.tabs.create({ url: settings.geminiUrl || 'https://gemini.google.com/app' }); saveSoon({ geminiOpened: true }); });
+  document.querySelector('#steps [data-step="studio"] a')?.addEventListener('click', () => saveSoon({ studioVisited: true }));
 
-  $('#profiles').addEventListener('input', onProfileInput);
-  $('#profiles').addEventListener('change', (e) => {
+  $('#profileList').addEventListener('input', onProfileInput);
+  $('#profileList').addEventListener('change', (e) => {
     if (e.target.name === 'activeProfile') saveSoon({ activeProfile: e.target.value });
     else if (e.target.type === 'checkbox') onProfileInput(e);
   });
-  $('#profiles').addEventListener('click', (e) => {
+  $('#profileList').addEventListener('click', (e) => {
     const d = e.target.closest('[data-del]');
     if (!d) return;
     const profiles = settings.profiles.filter((_, i) => i !== +d.dataset.del);
@@ -147,16 +181,28 @@ function onProfileInput(e) {
     renderProfiles();
   });
   $('#addProfile').addEventListener('click', () => {
-    const profiles = [...settings.profiles, { ...DEFAULT_PROFILE, id: 'p' + Date.now().toString(36), name: 'Nouvelle chaîne' }];
+    const profiles = [...settings.profiles, { ...DEFAULT_PROFILE, id: 'p' + Date.now().toString(36), name: t('op.profiles.newName') }];
     saveSoon({ profiles });
     renderProfiles();
   });
 
+  $('#kpFile').addEventListener('change', async (e) => {
+    const files = [...e.target.files];
+    e.target.value = '';
+    let n = 0, last = null;
+    try {
+      for (const f of files) { last = await importKeywordPlanner(await f.arrayBuffer(), {}); n += last.imported; }
+      status($('#kpMsg'), true, t('kp.done', { n: n.toLocaleString(I18n.locale()), total: (last?.total || 0).toLocaleString(I18n.locale()) }));
+    } catch (err) { status($('#kpMsg'), false, err.message === 'no-header' ? t('kp.badFile') : err.message); }
+    renderKp();
+  });
+  $('#kpClear').addEventListener('click', async () => { await clearKeywordPlanner(); $('#kpMsg').innerHTML = ''; renderKp(); });
+
   $('#export').addEventListener('click', async () => {
-    const data = { app: 'jec-tubepilot', version: chrome.runtime.getManifest().version, settings: { ...settings, models: undefined }, competitors: await getCompetitors() };
+    const data = { app: 'tubepilot', version: chrome.runtime.getManifest().version, settings: { ...settings, models: undefined }, competitors: await getCompetitors() };
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-    a.download = 'jec-tubepilot-reglages.json';
+    a.download = 'tubepilot-settings.json';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   });
@@ -165,16 +211,22 @@ function onProfileInput(e) {
     if (!f) return;
     try {
       const data = JSON.parse(await f.text());
-      if (data.app !== 'jec-tubepilot' || !data.settings) throw new Error('Ce fichier ne vient pas de JEC TubePilot.');
+      if (!/tubepilot/.test(data.app || '') || !data.settings) throw new Error(t('op.backup.badFile'));
       settings = await setSettings(data.settings);
       if (Array.isArray(data.competitors)) await setCompetitors(data.competitors);
-      $('#backupStatus').innerHTML = '<span class="ok">✓ Réglages importés. Rechargez la page.</span>';
-    } catch (err) {
-      $('#backupStatus').innerHTML = `<span style="color:var(--bad)">✘ ${esc(err.message)}</span>`;
-    }
+      status($('#backupStatus'), true, t('op.backup.imported'));
+      setTimeout(() => location.reload(), 900);
+    } catch (err) { status($('#backupStatus'), false, err.message); }
   });
   $('#clearCache').addEventListener('click', async () => {
     const n = await pruneCache(0);
-    $('#backupStatus').textContent = `${n} élément(s) de cache supprimé(s).`;
+    status($('#backupStatus'), true, t('op.backup.cleared', { n }));
   });
+
+  // section visible → lien actif dans la navigation
+  const links = $$('#nav a');
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((en) => { if (en.isIntersecting) links.forEach((a) => a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id)); });
+  }, { rootMargin: '-40% 0px -55% 0px' });
+  $$('.op-main section').forEach((s) => obs.observe(s));
 })();

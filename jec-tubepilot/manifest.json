@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "JEC TubePilot — SEO YouTube par Gemini",
+  "name": "__MSG_appName__",
   "short_name": "TubePilot",
-  "version": "4.2.0",
-  "description": "Votre Gemini Pro (gemini.google.com) écoute vos clips tout seul : titres à forte accroche, timeline 00:05 avec meilleurs moments, tags, hashtags tendance, mots-clés réels, insertion auto dans YouTube Studio.",
+  "version": "5.0.0",
+  "description": "__MSG_appDesc__",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "icons/icon16.png",
@@ -12,7 +12,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "JEC TubePilot",
+    "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png"
@@ -47,6 +47,11 @@
         "https://studio.youtube.com/*"
       ],
       "js": [
+        "lib/locales/en.js",
+        "lib/locales/fr.js",
+        "lib/locales/ar.js",
+        "lib/i18n.js",
+        "lib/icons.js",
         "lib/format.js",
         "lib/policy.js",
         "lib/seo.js",
@@ -60,6 +65,11 @@
         "https://www.youtube.com/*"
       ],
       "js": [
+        "lib/locales/en.js",
+        "lib/locales/fr.js",
+        "lib/locales/ar.js",
+        "lib/i18n.js",
+        "lib/icons.js",
         "lib/format.js",
         "lib/policy.js",
         "lib/seo.js",
@@ -83,6 +93,10 @@
         "https://gemini.google.com/*"
       ],
       "js": [
+        "lib/locales/en.js",
+        "lib/locales/fr.js",
+        "lib/locales/ar.js",
+        "lib/i18n.js",
         "lib/jsonparse.js",
         "content/gemini-web.js"
       ],
@@ -103,6 +117,7 @@
     {
       "resources": [
         "engine/engine.html",
+        "lib/tp.css",
         "content/shadow.css",
         "icons/icon32.png"
       ],
@@ -111,5 +126,6 @@
         "https://www.youtube.com/*"
       ]
     }
-  ]
+  ],
+  "default_locale": "en"
 }

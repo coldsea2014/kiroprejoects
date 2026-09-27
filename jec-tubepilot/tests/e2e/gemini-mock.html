@@ -30,13 +30,13 @@
   send.addEventListener('click', () => {
     const prompt = ed.innerText;
     window.__prompts.push(prompt);
-    fetch('/__log', { method: 'POST', body: JSON.stringify({ prompt: prompt.slice(0, 300), seo: prompt.includes('À PRODUIRE'), files: window.__files.slice() }) }).catch(() => {});
+    fetch('/__log', { method: 'POST', body: JSON.stringify({ prompt: prompt.slice(0, 300), seo: prompt.includes('DELIVERABLES'), files: window.__files.slice() }) }).catch(() => {});
     ed.innerHTML = ''; sync();
     document.getElementById('files').innerHTML = '';
     const uq = document.createElement('user-query'); uq.textContent = prompt.slice(0, 60); chat.append(uq);
     const stop = document.createElement('button'); stop.setAttribute('aria-label', 'Stop response'); document.querySelector('.input-area').append(stop);
     const mr = document.createElement('model-response'); const mc = document.createElement('message-content'); mr.append(mc); chat.append(mr);
-    const json = prompt.includes('À PRODUIRE') ? SEO : ANALYSIS;
+    const json = prompt.includes('DELIVERABLES') ? SEO : ANALYSIS;
     setTimeout(() => { mc.innerHTML = '<model-thoughts>{"brouillon": true}</model-thoughts><p>Voici le JSON :</p>'; }, 300);
     setTimeout(() => {
       const pre = document.createElement('pre'); const code = document.createElement('code');

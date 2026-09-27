@@ -1,4 +1,5 @@
-// JEC TubePilot — chaîne complète : média → écoute Gemini → recherches YouTube réelles → concurrents → pack SEO
+// TubePilot — chaîne complète : média → écoute Gemini → recherches YouTube réelles → concurrents → pack SEO
+import { t } from './lang.js';
 import { getSettings, setSettings, pickProfile, profileLanguages, savePack, getPack } from './storage.js';
 import * as G from './gemini.js';
 import { research, competition } from './keywords.js';
@@ -13,16 +14,16 @@ import './postprocess.js';
 const F = globalThis.TPF, S = globalThis.TPSeo;
 
 export const STEPS = [
-  { id: 'prepare', label: 'Préparation du média' },
-  { id: 'upload', label: 'Envoi sécurisé à Gemini' },
-  { id: 'processing', label: 'Traitement par Google' },
-  { id: 'gemini', label: 'Ouverture de Gemini' },
-  { id: 'analyze', label: 'Gemini écoute et regarde' },
-  { id: 'keywords', label: 'Recherches YouTube réelles' },
-  { id: 'trends', label: 'Tendances du moment' },
-  { id: 'competition', label: 'Analyse des concurrents' },
-  { id: 'seo', label: 'Rédaction SEO' },
-  { id: 'done', label: 'Terminé' }
+  { id: 'prepare', label: 'Preparing media' },
+  { id: 'upload', label: 'Secure upload to Gemini' },
+  { id: 'processing', label: 'Google processing' },
+  { id: 'gemini', label: 'Opening Gemini' },
+  { id: 'analyze', label: 'Gemini listens and watches' },
+  { id: 'keywords', label: 'Real YouTube searches' },
+  { id: 'trends', label: 'Current trends' },
+  { id: 'competition', label: 'Competitor analysis' },
+  { id: 'seo', label: 'SEO writing' },
+  { id: 'done', label: 'Done' }
 ];
 
 // Choisit automatiquement les modèles si l'utilisateur ne l'a pas fait
@@ -54,7 +55,7 @@ export function searchLocale(analysis, profile) {
   const langs = profileLanguages(profile);
   const countries = (analysis?.target_countries || []).map((c) => String(c || '').trim().toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c));
   const gl = countries[0] || String(profile?.country || '').toUpperCase();
-  const hl = String(analysis?.search_language || analysis?.language_code || langs[0] || 'fr').slice(0, 2).toLowerCase();
+  const hl = String(analysis?.search_language || analysis?.language_code || langs[0] || 'en').slice(0, 2).toLowerCase();
   return { hl, gl, countries: countries.length ? countries : gl ? [gl] : [] };
 }
 
@@ -106,7 +107,7 @@ async function gatherTrends({ settings, analysis, profile, kw, useWeb, signal, w
   const m = analysis?.music || {};
   const jobs = [];
   if (settings.ytKey && kw.locale.gl) {
-    jobs.push(youtubeTrends(kw.locale.gl).then((r) => { out.youtube = r; }).catch((e) => warn('Tendances YouTube : ' + e.message)));
+    jobs.push(youtubeTrends(kw.locale.gl).then((r) => { out.youtube = r; }).catch((e) => warn(t('warn.ytTrends', { msg: e.message }))));
   }
   if (useWeb && (m.primary_genre || profile.genre)) {
     jobs.push(webTrends({
@@ -117,7 +118,7 @@ async function gatherTrends({ settings, analysis, profile, kw, useWeb, signal, w
       language: kw.locale.hl,
       terms: (m.genre_search_terms || []).slice(0, 4),
       signal
-    }).then((r) => { out.web = r; }).catch((e) => warn('Tendances web : ' + e.message)));
+    }).then((r) => { out.web = r; }).catch((e) => warn(t('warn.webTrends', { msg: e.message }))));
   }
   await Promise.all(jobs);
   return out.youtube || out.web ? out : null;
@@ -133,7 +134,7 @@ async function apiAnalyze({ file, youtubeUrl, ctx, settings, options, emit, sign
   if (file) {
     const { prepare } = await import('./media.js');
     emit('prepare');
-    const prep = await prepare(file, { mode: options.mediaMode || settings.mediaMode, onStep: () => emit('prepare', { detail: 'Extraction de l\'audio sur votre ordinateur…' }) });
+    const prep = await prepare(file, { mode: options.mediaMode || settings.mediaMode, onStep: () => emit('prepare', { detail: t('prog.extracting') }) });
     ctx.duration = ctx.duration || Math.round(prep.info.duration);
     if (ctx.isShort === undefined) ctx.isShort = prep.info.height > prep.info.width && prep.info.duration <= 180;
     if (prep.bpm) ctx.localBpm = prep.bpm.bpm;
@@ -156,7 +157,7 @@ async function apiAnalyze({ file, youtubeUrl, ctx, settings, options, emit, sign
       mediaResolution: long ? 'MEDIA_RESOLUTION_LOW' : undefined, signal, timeoutMs: 600000,
       onRetry: (e) => emit('analyze', { detail: e.message })
     });
-    if (!r.json || typeof r.json !== 'object') throw new G.GeminiError('Gemini n\'a pas renvoyé d\'analyse lisible. Réessayez.', { reason: 'json' });
+    if (!r.json || typeof r.json !== 'object') throw new G.GeminiError(t('err.noAnalysis'), { reason: 'json' });
     usage.analysis = r.usage;
     return { analysis: r.json, media, model };
   } finally {
@@ -167,7 +168,7 @@ async function apiAnalyze({ file, youtubeUrl, ctx, settings, options, emit, sign
 // Audio de la vidéo pour la conversation Gemini (mode abonnement)
 async function chatAudio(file, ctx, emit) {
   const { prepareChatAudio } = await import('./media.js');
-  emit('prepare', { detail: 'Extraction de l\'audio sur votre ordinateur…' });
+  emit('prepare', { detail: t('prog.extracting') });
   const a = await prepareChatAudio(file);
   ctx.duration = ctx.duration || Math.round(a.info.duration || 0);
   if (ctx.isShort === undefined && a.info.width) ctx.isShort = a.info.height > a.info.width && a.info.duration <= 180;
@@ -180,32 +181,32 @@ async function webAnalyze({ file, youtubeUrl, raw, ctx, settings, emit, signal, 
   const W = await import('./gemini-web.js');
   let link = youtubeUrl || '';
   if (!link && raw.videoId && !file) {
-    emit('prepare', { detail: 'La vidéo est-elle publique ?' });
+    emit('prepare', { detail: t('prog.checkPublic') });
     if (await isPublic(raw.videoId)) link = 'https://www.youtube.com/watch?v=' + raw.videoId;
   }
   let audio = null;
   if (!link && file) audio = await chatAudio(file, ctx, emit);
   if (!link && !audio) {
-    warns.push('Vidéo privée et fichier non capté : SEO écrit sans écoute. Choisissez le fichier de la vidéo pour que Gemini l\'écoute.');
+    warns.push(t('warn.privateNoFile'));
     return { analysis: null, media: null };
   }
-  emit('gemini', { detail: 'Ouverture de Gemini (votre abonnement)' });
+  emit('gemini', { detail: t('prog.openingGemini') });
   sessionRef.s = sessionRef.s || await W.openSession({ url: settings.geminiUrl, mode: settings.geminiWindow });
   const onStatus = (m) => emit('analyze', { detail: m.text || '' });
-  emit('analyze', { detail: link ? 'Gemini ouvre le lien YouTube' : 'Gemini écoute l\'audio joint' });
+  emit('analyze', { detail: link ? t('prog.viaLink') : t('prog.viaAudio') });
   let r = await W.ask(sessionRef.s, { prompt: webAnalysisPrompt(ctx, { link }), attachment: audio?.blob, attachName: audio?.name, keys: ['music', 'timeline'], signal, onStatus });
   if (r.error && link && file) {
     // lien refusé par Gemini : l'audio est joint dans la même conversation
     audio = await chatAudio(file, ctx, emit);
-    emit('analyze', { detail: 'Lien refusé : Gemini écoute l\'audio joint' });
+    emit('analyze', { detail: t('prog.linkRefused') });
     r = await W.ask(sessionRef.s, { prompt: webAnalysisPrompt(ctx, {}), attachment: audio.blob, attachName: audio.name, keys: ['music', 'timeline'], signal, onStatus });
   }
   if (r.error) {
-    warns.push(`Gemini n'a pas pu accéder à la vidéo (${r.error}) : SEO écrit sans écoute.${link ? ' Pour une vidéo privée, choisissez son fichier.' : ''}`);
+    warns.push(t('warn.noAccess', { why: r.error }) + (link ? ' ' + t('warn.pickFileForPrivate') : ''));
     return { analysis: null, media: null };
   }
-  if (!r.obj) throw new W.GeminiWebError('Réponse de Gemini illisible. Réessayez (ou choisissez un autre modèle dans Gemini).', 'json');
-  if (r.cut) warns.push('Réponse d\'écoute de Gemini coupée : certaines informations peuvent manquer.');
+  if (!r.obj) throw new W.GeminiWebError(t('err.unreadable'), 'json');
+  if (r.cut) warns.push(t('warn.analysisCut'));
   const media = audio ? { kind: 'audio', mime: 'audio/wav', size: audio.blob.size, duration: audio.info.duration, bpm: audio.bpm, fileName: file?.name || '' } : { kind: 'youtube', url: link };
   return { analysis: r.obj, media };
 }
@@ -216,7 +217,7 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
   let settings = await getSettings();
   const web = (options.engine || settings.aiEngine) !== 'api';
   if (!web) {
-    if (!settings.geminiKey) throw new G.GeminiError('Mode API : ajoutez votre clé Gemini (aistudio.google.com/apikey), ou choisissez « Gemini Pro (mon abonnement) » dans les réglages.', { reason: 'key' });
+    if (!settings.geminiKey) throw new G.GeminiError(t('err.apiNoKey'), { reason: 'key' });
     settings = await ensureModels(settings);
   }
   const profile = (raw.profileId && settings.profiles.find((p) => p.id === raw.profileId)) || pickProfile(settings, raw.channelId);
@@ -227,7 +228,7 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
     titleCount: settings.titleCount,
     transcribeLyrics: options.transcribeLyrics ?? settings.transcribeLyrics
   };
-  const seoModel = web ? 'Gemini (abonnement)' : options.seoModel || settings.modelMain || settings.modelFast;
+  const seoModel = web ? t('engine.web') : options.seoModel || settings.modelMain || settings.modelFast;
   const emit = (step, extra = {}) => onProgress?.({ step, ...extra });
   const packKey = raw.packKey || packKeyFor({ videoId: raw.videoId, file, youtubeUrl });
   const aliases = F.uniq([packKey, raw.videoId ? 'vid:' + raw.videoId : '', ...(raw.aliases || [])].filter(Boolean));
@@ -253,22 +254,22 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
       const audio = !link && file ? await chatAudio(file, ctx, emit) : null;
       emit('keywords');
       const kw0 = await gatherKeywords(ctx, null, profile, { deep: false });
-      emit('gemini', { detail: 'Ouverture de Gemini (votre abonnement)' });
+      emit('gemini', { detail: t('prog.openingGemini') });
       sessionRef.s = await W.openSession({ url: settings.geminiUrl, mode: settings.geminiWindow });
-      emit('analyze', { detail: 'Écoute + SEO en une seule demande' });
+      emit('analyze', { detail: t('prog.single') });
       const r = await W.ask(sessionRef.s, { prompt: webSinglePrompt(ctx, { link, kwData: kw0 }), attachment: audio?.blob, attachName: audio?.name, keys: ['analysis', 'seo'], signal, onStatus: (m) => emit('analyze', { detail: m.text || '' }) });
-      if (r.error || !r.obj) throw new W.GeminiWebError(r.error ? `Gemini n'a pas pu accéder à la vidéo (${r.error}).` : 'Réponse de Gemini illisible. Réessayez.', 'json');
+      if (r.error || !r.obj) throw new W.GeminiWebError(r.error ? t('warn.noAccess', { why: r.error }) : t('err.unreadable'), 'json');
       analysis = r.obj.analysis || null;
       seoJson = r.obj.seo || null;
       media = audio ? { kind: 'audio', size: audio.blob.size, duration: audio.info.duration, bpm: audio.bpm, fileName: file?.name || '' } : { kind: 'youtube', url: link };
-      analysisModel = 'Gemini (abonnement)';
+      analysisModel = t('engine.web');
     } else if (listen && (file || youtubeUrl || (web && raw.videoId))) {
       const r = web
         ? await webAnalyze({ file, youtubeUrl, raw, ctx, settings, emit, signal, warns, sessionRef })
         : await apiAnalyze({ file, youtubeUrl, ctx, settings, options, emit, signal, usage });
       analysis = r.analysis;
       media = r.media;
-      analysisModel = web ? 'Gemini (abonnement)' : r.model;
+      analysisModel = web ? t('engine.web') : r.model;
     }
     if (analysis) ctx.duration = ctx.duration || Math.round(analysis.duration_seconds || 0);
     if (analysis?.is_cover) ctx.isCover = true;
@@ -276,7 +277,7 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
     emit('keywords');
     const kw = await gatherKeywords(ctx, analysis, profile, { deep: options.deepKeywords !== false, onProgress: (p) => emit('keywords', { pct: p }) });
 
-    emit('trends', { detail: kw.locale.gl ? `pays : ${kw.locale.countries.join(', ')}` : '' });
+    emit('trends', { detail: kw.locale.countries.join(', ') });
     const trends = await gatherTrends({
       settings, analysis, profile, kw, signal,
       // en mode abonnement, Gemini cherche lui-même les tendances sur Google dans la conversation
@@ -291,7 +292,7 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
       const music = /music/.test(analysis?.content_type || '') || isMusicProfile(profile);
       const results = [];
       for (const cand of kw.candidates.slice(0, 2)) {
-        emit('competition', { detail: `« ${cand} »` });
+        emit('competition', { detail: cand });
         try {
           results.push(await competition(cand, { regionCode: kw.locale.gl || undefined, relevanceLanguage: kw.locale.hl, videoCategoryId: music ? '10' : undefined }));
         } catch (e) { emit('competition', { warn: e.message }); break; }
@@ -304,19 +305,19 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
     }
 
     if (!seoJson) {
-      emit('seo', { detail: web ? 'Gemini rédige dans la même conversation' : seoModel });
+      emit('seo', { detail: web ? t('prog.sameConversation') : seoModel });
       const sctx = { ...ctx, keyword: ctx.keyword || '' };
       if (web) {
         const W = await import('./gemini-web.js');
-        if (!sessionRef.s) { emit('gemini', { detail: 'Ouverture de Gemini (votre abonnement)' }); sessionRef.s = await W.openSession({ url: settings.geminiUrl, mode: settings.geminiWindow }); }
+        if (!sessionRef.s) { emit('gemini', { detail: t('prog.openingGemini') }); sessionRef.s = await W.openSession({ url: settings.geminiUrl, mode: settings.geminiWindow }); }
         const r = await W.ask(sessionRef.s, { prompt: webSeoPrompt(sctx, analysis, kw, comp, trends), keys: ['titles', 'tags'], signal, onStatus: (m) => emit('seo', { detail: m.text || '' }) });
-        if (!r.obj || !Array.isArray(r.obj.titles)) throw new W.GeminiWebError('Gemini n\'a pas renvoyé de titres lisibles. Réessayez.', 'json');
-        if (r.cut) warns.push('Réponse SEO de Gemini coupée : vérifiez la description.');
+        if (!r.obj || !Array.isArray(r.obj.titles)) throw new W.GeminiWebError(t('err.noTitles'), 'json');
+        if (r.cut) warns.push(t('warn.seoCut'));
         seoJson = r.obj;
       } else {
         const { system, text } = seoPrompt(sctx, analysis, kw, comp, trends);
         const r = await G.generate({ key: settings.geminiKey, model: seoModel, parts: [{ text }], system, schema: SEO_SCHEMA, temperature: 0.85, signal, timeoutMs: 300000, onRetry: (e) => emit('seo', { detail: e.message }) });
-        if (!r.json || !Array.isArray(r.json.titles)) throw new G.GeminiError('Gemini n\'a pas renvoyé de titres. Réessayez.', { reason: 'json' });
+        if (!r.json || !Array.isArray(r.json.titles)) throw new G.GeminiError(t('err.noTitles'), { reason: 'json' });
         usage.seo = r.usage;
         seoJson = r.json;
       }
@@ -379,7 +380,7 @@ export async function analyzeHooks(titles, { topic = '', profileId } = {}) {
     const r = await G.generate({ key: settings.geminiKey, model: settings.modelFast || settings.modelMain, parts: [{ text }], system, schema: HOOKS_SCHEMA, temperature: 0.8 });
     json = r.json;
   }
-  if (!json) throw new G.GeminiError('Réponse illisible, réessayez.');
+  if (!json) throw new G.GeminiError(t('err.unreadable'));
   const ideas = (json.title_ideas || []).map((t) => ({ ...t, score: S.scoreTitle(t.text, { keyword: topic }).score }));
   return { formulas: [], power_words: [], recommendations: [], ...json, title_ideas: ideas.sort((a, b) => b.score - a.score) };
 }

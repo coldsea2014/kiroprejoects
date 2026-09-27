@@ -1,15 +1,16 @@
-// JEC TubePilot — page vidéo YouTube : tags, vues/heure, score SEO, accroches et engagement de n'importe quelle vidéo
+// TubePilot — page vidéo YouTube : tags, vues/heure, score SEO, accroches et engagement de n'importe quelle vidéo
 (function () {
   'use strict';
   if (window.__tpWatchAlive?.()) return;
   const UI = globalThis.TPUI, F = globalThis.TPF, P = globalThis.TPPolicy, S = globalThis.TPSeo;
+  const t = (k, v) => globalThis.TPI18n.t(k, v);
   window.__tpWatchAlive = UI.alive;
   const esc = F.esc;
 
   let enabled = true, data = null, stats = null, card = null, collapsed = false;
   try { collapsed = localStorage.getItem('tp-watch-collapsed') === '1'; } catch (e) { /* stockage bloqué */ }
 
-  chrome.storage.local.get('settings').then(({ settings }) => { enabled = settings?.watchCard !== false; if (!enabled) card?.host.remove(); });
+  chrome.storage.local.get('settings').then(({ settings }) => { TPI18n.setLang(settings?.uiLang || 'auto'); enabled = settings?.watchCard !== false; if (!enabled) card?.host.remove(); else render(); });
 
   function container() {
     const sec = document.querySelector('#secondary-inner');
@@ -28,6 +29,9 @@
     }
     if (!card.host.isConnected || card.host.parentElement !== c.el) c.el.insertAdjacentElement(c.where, card.host);
     card.host.classList.toggle('dark', UI.isDark());
+    card.body.dir = TPI18n.dir();
+    const I = globalThis.TPIcons;
+    const ic = (n, sz = 14) => I.icon(n, sz);
     const d = data;
     const v = stats?.video;
     const ch = stats?.channel;
@@ -41,34 +45,31 @@
     const hashtags = P.extractHashtags(desc);
     const chapters = P.parseChapters(desc);
     const outlier = ch?.subs ? views / ch.subs : 0;
+    const kpi = (val, label) => `<div class="tp-kpi"><b>${val}</b><span>${esc(label)}</span></div>`;
     card.body.innerHTML = `<div class="tp-card tp-watch">
-      <div class="tp-head">${UI.logo()}<b>JEC TubePilot</b>${UI.badge(sc.score, 'Score SEO de cette vidéo')}
-        <span class="tp-sub"><span>Titre <b>${sc.title.score}</b></span><span>Desc. <b>${sc.description.score}</b></span><span>Tags <b>${sc.tags.score}</b></span></span>
-        <span class="tp-sp"></span><button class="tp-ghost" data-act="collapse">${collapsed ? '▸' : '▾'}</button></div>
-      <div class="tp-body ${collapsed ? 'tp-hidden' : ''}">
-        <div class="tp-stat">
-          <div><b>${F.num(views)}</b><span>vues</span></div>
-          <div><b>${F.num(perHour)}</b><span>vues / heure</span></div>
-          <div><b>${published ? esc(F.ago(published).replace('il y a ', '')) : '—'}</b><span>âge</span></div>
-          ${v ? `<div><b>${v.engagement.toFixed(1).replace('.', ',')} %</b><span>engagement</span></div>
-          <div><b>${F.num(v.likes)}</b><span>j'aime</span></div>
-          <div><b>${F.num(v.comments)}</b><span>commentaires</span></div>` : ''}
-          ${ch ? `<div><b>${ch.hiddenSubs ? '—' : F.num(ch.subs)}</b><span>abonnés</span></div>
-          <div><b>${outlier ? '×' + (outlier >= 10 ? Math.round(outlier) : outlier.toFixed(1).replace('.', ',')) : '—'}</b><span>vues / abonnés</span></div>` : ''}
-          <div><b>${F.dur(d.lengthSeconds)}</b><span>${esc(d.category || 'durée')}</span></div>
+      <div class="tp-card__head">${I.logo(20)}<b class="tp-brand">TubePilot</b>${I.ring(sc.score, 32, t('score.overall'))}
+        <div class="tp-subscores"><span>${esc(t('score.titleShort'))} <b>${sc.title.score}</b></span><span>${esc(t('score.descShort'))} <b>${sc.description.score}</b></span><span>${esc(t('score.tagsShort'))} <b>${sc.tags.score}</b></span></div>
+        <span class="tp-grow"></span><button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-act="collapse" title="${esc(collapsed ? t('common.expand') : t('common.collapse'))}">${ic(collapsed ? 'down' : 'x')}</button></div>
+      <div class="tp-card__body ${collapsed ? 'tp-hidden' : ''}">
+        <button class="tp-btn tp-btn--primary tp-btn--block" data-act="analyze" title="${esc(t('watch.analyzeHint'))}">${ic('sparkles', 15)} ${esc(t('watch.analyze'))}</button>
+        <div class="tp-kpis">
+          ${kpi(F.num(views), t('watch.views'))}
+          ${kpi(F.num(perHour), t('watch.vph'))}
+          ${kpi(published ? esc(F.ago(published)) : '—', t('watch.age'))}
+          ${v ? kpi(v.engagement.toFixed(1) + '%', t('watch.engagement')) + kpi(F.num(v.likes), t('watch.likes')) + kpi(F.num(v.comments), t('watch.comments')) : ''}
+          ${ch ? kpi(ch.hiddenSubs ? '—' : F.num(ch.subs), t('watch.subs')) + kpi(outlier ? '×' + (outlier >= 10 ? Math.round(outlier) : outlier.toFixed(1)) : '—', t('watch.outlier')) : ''}
         </div>
-        ${!stats ? '<div class="tp-muted tp-small">Ajoutez une clé YouTube Data API dans les réglages pour voir j\'aime, commentaires, abonnés et le ratio vues/abonnés.</div>' : ''}
-        <div class="tp-small">🧠 Accroches du titre : ${hooks.length ? hooks.map((h) => `<span class="tp-chip">${esc(h)}</span>`).join(' ') : '<span class="tp-muted">aucune détectée</span>'}</div>
-        <div class="tp-small">#️⃣ ${hashtags.length} hashtag(s) · ⏱️ ${chapters.length ? chapters.length + ' chapitres' : 'pas de chapitres'} · ${d.title.length} car. dans le titre</div>
-        <div>
-          <div class="tp-row"><b class="tp-small">🏷️ Tags (${tags.length} · ${P.tagsLength(tags)}/500)</b><span class="tp-sp"></span>${tags.length ? '<button data-act="copytags">Copier les tags</button>' : ''}</div>
-          <div class="tp-chips">${tags.length ? tags.map((t) => `<button class="tp-chip" data-act="kw" data-kw="${esc(t)}" title="Analyser ce mot-clé">${esc(t)}</button>`).join('') : '<span class="tp-muted tp-small">Aucun tag public sur cette vidéo.</span>'}</div>
+        ${!stats ? `<div class="tp-tiny tp-faint">${esc(t('watch.needKey'))}</div>` : ''}
+        <div class="tp-row tp-small">${ic('target')}<span class="tp-muted">${esc(t('watch.hooks'))}</span>${hooks.length ? hooks.map((h) => `<span class="tp-chip tp-chip--accent">${esc(t('hook.' + h))}</span>`).join('') : `<span class="tp-faint">${esc(t('watch.noHook'))}</span>`}</div>
+        <div class="tp-row tp-small tp-muted">${ic('hash')} ${esc(t('watch.hashtags', { n: hashtags.length }))} · ${ic('clock')} ${esc(chapters.length ? t('watch.chapters', { n: chapters.length }) : t('watch.noChapters'))}</div>
+        <div class="tp-stack tp-stack--sm">
+          <div class="tp-row"><b class="tp-small">${ic('tag')} ${esc(t('watch.tags', { n: tags.length, len: P.tagsLength(tags) }))}</b><span class="tp-grow"></span>${tags.length ? `<button class="tp-btn tp-btn--sm" data-act="copytags">${ic('copy', 13)} ${esc(t('common.copy'))}</button>` : ''}</div>
+          <div class="tp-chips">${tags.length ? tags.map((x) => `<button class="tp-chip tp-chip--click tp-bidi" data-act="kw" data-kw="${esc(x)}" title="${esc(t('watch.analyzeKeyword'))}">${esc(x)}</button>`).join('') : `<span class="tp-small tp-faint">${esc(t('watch.noTags'))}</span>`}</div>
         </div>
         <div class="tp-row">
-          <button class="tp-primary" data-act="analyze" title="Gemini écoute ce clip public et prépare titres, timeline, tags et hashtags">🎧 Analyser ce clip avec Gemini</button>
-          <button data-act="follow">➕ Suivre la chaîne</button>
-          <button data-act="hooks">🧠 Formules d'accroche</button>
-          <button data-act="kw" data-kw="${esc(tags[0] || d.title)}">🔑 Mots-clés</button>
+          <button class="tp-btn tp-btn--sm" data-act="follow">${ic('users', 13)} ${esc(t('watch.follow'))}</button>
+          <button class="tp-btn tp-btn--sm" data-act="hooks">${ic('target', 13)} ${esc(t('watch.hookFormulas'))}</button>
+          <button class="tp-btn tp-btn--sm" data-act="kw" data-kw="${esc(tags[0] || d.title)}">${ic('key', 13)} ${esc(t('watch.keywords'))}</button>
         </div>
       </div>
     </div>`;
@@ -86,7 +87,7 @@
       } else if (act === 'copytags') {
         const tags = stats?.video?.tags?.length ? stats.video.tags : data.keywords;
         await UI.copy(tags.join(', '));
-        UI.toast('Tags copiés ✓');
+        UI.toast(t('toast.copied'));
       } else if (act === 'analyze') {
         UI.openPanel({ tab: 'video', url: 'https://www.youtube.com/watch?v=' + data.videoId, autorun: true });
       } else if (act === 'kw') {
@@ -95,10 +96,10 @@
         UI.openPanel({ tab: 'competitors', channelId: data.channelId, videoTitle: data.title });
       } else if (act === 'follow') {
         const c = await UI.send('addCompetitor', { channel: data.channelId });
-        UI.toast(`« ${c.title} » ajoutée à vos concurrents ✓`);
+        UI.toast(t('toast.followed', { name: c.title }));
       }
     } catch (e) {
-      UI.toast('⚠️ ' + e.message, 5000);
+      UI.toast(e.message, 5000, 'alert');
     }
   }
 

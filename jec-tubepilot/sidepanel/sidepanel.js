@@ -1,7 +1,9 @@
-// JEC TubePilot — panneau latéral : vidéo (écoute + SEO), mots-clés, concurrents, tendances, historique
+// TubePilot — panneau latéral : vidéo (écoute + SEO), mots-clés (+ Keyword Planner), concurrents, tendances, historique
+import { t, I18n } from '../lib/lang.js';
 import { getSettings, setSettings, getPack, savePack, listPacks, deletePack, getCompetitors, setCompetitors, getQuota } from '../lib/storage.js';
 import { run, fromManual, analyzeHooks, STEPS } from '../lib/pipeline.js';
 import { research, competition } from '../lib/keywords.js';
+import { importKeywordPlanner, kpStats, clearKeywordPlanner } from '../lib/kpimport.js';
 import * as YT from '../lib/ytapi.js';
 import { manualPrompt } from '../lib/prompts.js';
 import '../lib/format.js';
@@ -9,50 +11,52 @@ import '../lib/policy.js';
 import '../lib/seo.js';
 import '../lib/postprocess.js';
 
-const F = globalThis.TPF, P = globalThis.TPPolicy, S = globalThis.TPSeo, Post = globalThis.TPPost;
+const F = globalThis.TPF, P = globalThis.TPPolicy, S = globalThis.TPSeo, Post = globalThis.TPPost, I = globalThis.TPIcons;
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = F.esc;
-const badge = (s, cls = '') => `<span class="sc ${F.scoreClass(s)} ${cls}">${Math.round(s)}</span>`;
-const bar = (pct) => `<div class="bar"><i style="width:${F.clamp(Math.round(pct), 0, 100)}%"></i></div>`;
-const show = (el, on = true) => el.classList.toggle('hidden', !on);
-const debounce = (fn, ms) => { let t = 0; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+const ic = (n, s = 15) => I.icon(n, s);
+const bar = (pct) => `<div class="tp-bar"><i style="width:${F.clamp(Math.round(pct), 0, 100)}%"></i></div>`;
+const show = (el, on = true) => el.classList.toggle('tp-hidden', !on);
+const debounce = (fn, ms) => { let h = 0; return (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); }; };
+const trendsUrl = (kw, geo) => `https://trends.google.com/trends/explore?gprop=youtube${geo ? '&geo=' + encodeURIComponent(geo) : ''}&q=${encodeURIComponent(kw)}`;
+const acc = (id, icon, title, body, { open = false, extra = '' } = {}) => `<details class="tp-acc" data-sec="${id}" ${open ? 'open' : ''}><summary><span class="tp-acc__icon">${ic(icon, 15)}</span><span>${title}</span>${extra}<span class="tp-acc__chev">${ic('down', 16)}</span></summary><div class="tp-acc__body">${body}</div></details>`;
 
-const COUNTRIES = [['MA', 'Maroc'], ['DZ', 'Algérie'], ['TN', 'Tunisie'], ['EG', 'Égypte'], ['SA', 'Arabie saoudite'], ['AE', 'Émirats'], ['KW', 'Koweït'], ['QA', 'Qatar'], ['IQ', 'Irak'], ['JO', 'Jordanie'], ['LB', 'Liban'], ['FR', 'France'], ['BE', 'Belgique'], ['CH', 'Suisse'], ['CA', 'Canada'], ['US', 'États-Unis'], ['GB', 'Royaume-Uni'], ['ES', 'Espagne'], ['DE', 'Allemagne'], ['IT', 'Italie'], ['NL', 'Pays-Bas'], ['TR', 'Turquie'], ['IN', 'Inde'], ['BR', 'Brésil'], ['MX', 'Mexique'], ['SN', 'Sénégal'], ['CI', 'Côte d\'Ivoire']];
-const LANGS = [['ar', 'Arabe'], ['fr', 'Français'], ['en', 'Anglais'], ['es', 'Espagnol'], ['de', 'Allemand'], ['it', 'Italien'], ['pt', 'Portugais'], ['tr', 'Turc'], ['hi', 'Hindi']];
+const COUNTRIES = ['MA', 'DZ', 'TN', 'EG', 'SA', 'AE', 'KW', 'QA', 'BH', 'OM', 'IQ', 'YE', 'JO', 'LB', 'SY', 'PS', 'LY', 'SD', 'FR', 'BE', 'CH', 'CA', 'US', 'GB', 'ES', 'DE', 'IT', 'NL', 'TR', 'IN', 'PK', 'ID', 'BR', 'MX', 'NG', 'SN', 'CI', 'ZA'];
+const LANGS = ['ar', 'en', 'fr', 'es', 'de', 'it', 'pt', 'tr', 'hi', 'ur', 'id'];
 
-let settings = null;
-let ctx = null;
-let pack = null;
-let edit = null;
-let job = null;
-let studioJob = null;
-let srcTouched = false;
+let settings = null, ctx = null, pack = null, edit = null, job = null, studioJob = null, srcTouched = false;
 
 /* =============== Général =============== */
-function showTab(name) {
-  $$('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
-  $$('.tab').forEach((t) => t.classList.toggle('on', t.id === 'tab-' + name));
-  if (name === 'history') renderHistory();
-  if (name === 'competitors') renderCompetitors();
+function icons(root = document) {
+  $$('[data-icon]', root).forEach((el) => { if (!el.dataset.iconDone) { el.insertAdjacentHTML('afterbegin', ic(el.dataset.icon, 15)); el.dataset.iconDone = '1'; } });
 }
 
-async function copy(text, msg = 'Copié ✓') {
-  try { await navigator.clipboard.writeText(text); flash(msg); } catch (e) { flash('Copie impossible : ' + e.message); }
+function showTab(name) {
+  $$('.sp-navbtn').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  $$('.sp-tab').forEach((x) => x.classList.toggle('on', x.id === 'tab-' + name));
+  show($('#actionBar'), name === 'video' && !!pack);
+  if (name === 'history') renderHistory();
+  if (name === 'competitors') renderCompetitors();
+  if (name === 'keywords') renderKp();
+}
+
+async function copy(text, msg = t('toast.copied')) {
+  try { await navigator.clipboard.writeText(text); flash(msg); } catch (e) { flash(e.message); }
 }
 
 function flash(msg) {
   const el = $('#status');
-  const prev = el.dataset.base || el.innerHTML;
-  el.dataset.base = prev;
-  el.innerHTML = `<b>${esc(msg)}</b>`;
-  clearTimeout(flash.t);
-  flash.t = setTimeout(() => { el.innerHTML = el.dataset.base; delete el.dataset.base; }, 2500);
+  clearTimeout(flash.h);
+  el.innerHTML = `<span class="sp-flash">${ic('check', 13)} ${esc(msg)}</span>`;
+  flash.h = setTimeout(renderFooter, 2600);
 }
 
-function fillSelect(sel, list, value) {
-  sel.innerHTML = list.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('');
-  if (value && list.some(([v]) => v === value)) sel.value = value;
+const countryName = (c) => { try { return new Intl.DisplayNames([I18n.locale()], { type: 'region' }).of(c) || c; } catch (e) { return c; } };
+const langName = (l) => { try { return new Intl.DisplayNames([I18n.locale()], { type: 'language' }).of(l) || l; } catch (e) { return l; } };
+function fillSelect(sel, list, value, label) {
+  sel.innerHTML = list.map((v) => `<option value="${esc(v)}">${esc(label(v))}</option>`).join('');
+  if (value && list.includes(value)) sel.value = value;
 }
 
 function profile() {
@@ -61,106 +65,53 @@ function profile() {
 
 async function loadSettings() {
   settings = await getSettings();
+  I18n.setLang(settings.uiLang || 'auto');
+  I18n.apply(document);
   const sel = $('#profile');
   const cur = sel.value || settings.activeProfile;
   sel.innerHTML = settings.profiles.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
   sel.value = settings.profiles.some((p) => p.id === cur) ? cur : settings.profiles[0].id;
-  renderKeys();
   $('#mediaMode').value = settings.mediaMode || 'auto';
   $('#lyricsChk').checked = !!settings.transcribeLyrics;
   $('#compChk').checked = !!settings.competitorLookup && !!settings.ytKey;
   $('#compChk').disabled = !settings.ytKey;
+  $('#webChk').checked = settings.webTrends !== false;
   const p = profile();
-  const lang = String(p.languages || 'fr').split(/[,\s]+/)[0];
-  fillSelect($('#kwHl'), LANGS, $('#kwHl').value || lang);
-  fillSelect($('#kwGl'), COUNTRIES, $('#kwGl').value || p.country);
-  fillSelect($('#trGl'), COUNTRIES, $('#trGl').value || p.country);
+  const lang = String(p.languages || 'en').split(/[,\s]+/)[0];
+  fillSelect($('#kwHl'), LANGS, $('#kwHl').value || lang, langName);
+  fillSelect($('#kwGl'), COUNTRIES, $('#kwGl').value || p.country, countryName);
+  fillSelect($('#trGl'), COUNTRIES, $('#trGl').value || p.country, countryName);
+  const web = settings.aiEngine !== 'api';
+  const ok = web || !!settings.geminiKey;
+  $('#engineChip').className = 'sp-engine' + (ok ? '' : ' off');
+  $('#engineChip').innerHTML = `<i></i>${esc(web ? t('engine.web') : t('engine.api'))}`;
+  syncSrc();
   renderFooter();
 }
 
 async function renderFooter() {
   const q = await getQuota();
-  const el = $('#status');
-  const html = `<span>${settings.aiEngine === 'api' ? `🤖 API ${esc(settings.modelMain || 'modèle auto')}` : '💎 Gemini Pro (abonnement)'}</span><span>📊 YouTube API : ${settings.ytKey ? `${q.toLocaleString('fr')} / 10 000 unités aujourd'hui` : 'pas de clé'}</span>`;
-  if (el.dataset.base) el.dataset.base = html; else el.innerHTML = html;
-}
-
-/* =============== Clés API (aussi dans Réglages) =============== */
-function renderKeys() {
-  const box = $('#keysBox');
-  const web = settings.aiEngine !== 'api';
-  const g = !!settings.geminiKey, y = !!settings.ytKey;
-  const ok = (v) => (v ? '<span class="ok">✓</span>' : '<b style="color:var(--bad)">✗</b>');
-  $('#keysState').innerHTML = `${web ? '💎 Gemini Pro (abonnement)' : `🔑 API Gemini ${ok(g)}${settings.modelMain ? ` <span class="muted">${esc(settings.modelMain)}</span>` : ''}`} · YouTube ${ok(y)}`;
-  if (!web && !g) box.open = true;
-  $$('input[name=engine]').forEach((r) => { r.checked = r.value === (web ? 'web' : 'api'); });
-  show($('#webOpts'), web);
-  show($('#apiOpts'), !web);
-  if (document.activeElement !== $('#gUrl')) $('#gUrl').value = settings.geminiUrl || '';
-  $('#gSteps').value = String(settings.geminiSteps || 2);
-  $('#gWin').value = settings.geminiWindow || 'popup';
-  $('#gClose').checked = settings.geminiClose !== false;
-  if (document.activeElement !== $('#gKey')) $('#gKey').value = settings.geminiKey || '';
-  if (document.activeElement !== $('#yKey')) $('#yKey').value = settings.ytKey || '';
-  const models = [...(settings.models || [])];
-  // modèle choisi absent de la liste (liste pas encore rechargée) : on le garde visible
-  [settings.modelMain, settings.modelFast].forEach((id) => { if (id && !models.some((m) => m.id === id)) models.push({ id, label: id }); });
-  const opts = models.map((m) => `<option value="${esc(m.id)}">${esc(m.label || m.id)}</option>`).join('');
-  $('#mMain').innerHTML = opts || '<option value="">(testez la clé Gemini)</option>';
-  $('#mFast').innerHTML = opts || '<option value="">(testez la clé Gemini)</option>';
-  if (settings.modelMain) $('#mMain').value = settings.modelMain;
-  if (settings.modelFast) $('#mFast').value = settings.modelFast;
-  $('#webChk').checked = settings.webTrends !== false;
-}
-
-async function saveGeminiKey() {
-  const key = $('#gKey').value.trim();
-  const st = $('#gState');
-  if (!key) { st.textContent = 'Collez la clé (elle commence par AIza).'; return; }
-  st.textContent = 'Test en cours…';
-  try {
-    const { listModels, rankModels } = await import('../lib/gemini.js');
-    const models = await listModels(key);
-    if (!models.length) throw new Error('Aucun modèle Gemini disponible pour cette clé.');
-    const r = rankModels(models);
-    const main = models.some((m) => m.id === settings.modelMain) ? settings.modelMain : r.pro || r.flash || r.all[0].id;
-    const fast = models.some((m) => m.id === settings.modelFast) ? settings.modelFast : r.flash || r.lite || main;
-    settings = await setSettings({ geminiKey: key, models: r.all.map((m) => ({ id: m.id, label: m.label })), modelMain: main, modelFast: fast });
-    st.innerHTML = `<span class="ok">✓ Clé valide — ${models.length} modèles</span>`;
-    loadSettings();
-  } catch (e) { st.innerHTML = `<span style="color:var(--bad)">✘ ${esc(e.message)}</span>`; }
-}
-
-async function saveYtKey() {
-  const key = $('#yKey').value.trim();
-  const st = $('#yState');
-  if (!key) { st.textContent = 'Collez la clé YouTube Data API v3.'; return; }
-  st.textContent = 'Test en cours…';
-  try {
-    await YT.testKey(key);
-    settings = await setSettings({ ytKey: key });
-    st.innerHTML = '<span class="ok">✓ Clé YouTube valide</span>';
-    loadSettings();
-  } catch (e) { st.innerHTML = `<span style="color:var(--bad)">✘ ${esc(e.message)}</span>`; }
+  $('#status').innerHTML = `<span>${ic('sparkles', 12)} ${esc(settings.aiEngine === 'api' ? `API · ${settings.modelMain || 'auto'}` : t('engine.web'))}</span>
+    <span>${ic('chart', 12)} ${settings.ytKey ? esc(t('footer.quota', { n: q.toLocaleString(I18n.locale()) })) : esc(t('footer.noYtKey'))}</span>`;
 }
 
 /* =============== Contexte : onglet actif =============== */
 async function activeTab() {
-  const [t] = await chrome.tabs.query({ active: true, currentWindow: true });
-  return t;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab;
 }
 
 async function refreshContext() {
-  const t = await activeTab();
-  const url = t?.url || '';
+  const tab = await activeTab();
+  const url = tab?.url || '';
   let next = null;
   if (url.startsWith('https://studio.youtube.com')) {
     try {
-      const r = await chrome.tabs.sendMessage(t.id, { type: 'studio:context' });
-      next = r?.ok ? { ...r.data, tabId: t.id } : { page: 'studio', stale: true };
+      const r = await chrome.tabs.sendMessage(tab.id, { type: 'studio:context' });
+      next = r?.ok ? { ...r.data, tabId: tab.id } : { page: 'studio', stale: true };
     } catch (e) { next = { page: 'studio', stale: true }; }
   } else if (/^https:\/\/www\.youtube\.com\/watch/.test(url)) {
-    next = { page: 'watch', videoId: new URL(url).searchParams.get('v') || '', tabId: t.id };
+    next = { page: 'watch', videoId: new URL(url).searchParams.get('v') || '', tabId: tab.id, title: (tab.title || '').replace(/ - YouTube$/, '') };
   }
   ctx = next;
   renderCtx();
@@ -171,37 +122,44 @@ async function refreshContext() {
 }
 
 function renderCtx() {
-  const box = $('#ctxBox');
-  let html;
-  if (ctx?.page === 'studio' && ctx.stale) html = '🔄 Rechargez l\'onglet YouTube Studio (F5) pour activer TubePilot.';
+  const box = $('#ctxCard');
+  let title, sub, id = '';
+  if (ctx?.page === 'studio' && ctx.stale) { title = t('ctx.studio'); sub = t('ctx.reload'); }
   else if (ctx?.page === 'studio') {
-    html = `🎬 <b>YouTube Studio</b> · ${ctx.uploading ? 'import en cours' : ctx.editing ? 'page Détails' : 'ouvrez une vidéo'}`;
-    if (ctx.hasFile) html += `<br>📁 Fichier capté : <b>${esc(ctx.fileName)}</b> (${(ctx.fileSize / 1048576).toFixed(1)} Mo) — Gemini peut l'écouter même si la vidéo est privée.`;
-    else if (ctx.editing) html += '<br>Fichier non capté (vidéo déjà en ligne ou page rechargée) : choisissez le fichier, ou « Lien YouTube public » si elle est publique.';
-    if (ctx.job) html += `<br>⏳ Analyse en cours dans Studio : ${esc(STEPS.find((s) => s.id === ctx.job.step)?.label || ctx.job.step)}…`;
+    id = ctx.videoId;
+    title = ctx.title || t('ctx.studio');
+    sub = ctx.hasFile ? t('ctx.fileCaptured', { name: ctx.fileName }) : ctx.editing ? t('ctx.noFile') : t('ctx.openVideo');
+    if (ctx.job) sub = t('ctx.running', { step: t('step.' + ctx.job.step) });
   } else if (ctx?.page === 'watch') {
-    html = `▶️ <b>Page vidéo YouTube</b> — pour l'analyser, choisissez « Lien YouTube public » (vidéos publiques seulement).`;
+    id = ctx.videoId;
+    title = ctx.title || t('ctx.watch');
+    sub = t('ctx.watchHint');
     if (!$('#urlIn').value) $('#urlIn').value = 'https://www.youtube.com/watch?v=' + ctx.videoId;
-  } else html = 'Ouvrez <b>YouTube Studio</b> et importez une vidéo : TubePilot l\'analyse automatiquement. Ou choisissez un fichier ci-dessous.';
-  box.innerHTML = html;
+  } else { title = t('ctx.none'); sub = t('ctx.noneHint'); }
+  box.innerHTML = `<div class="tp-card"><div class="tp-card__body"><div class="sp-ctx">
+    ${id ? `<img class="sp-thumb" src="https://i.ytimg.com/vi/${esc(id)}/mqdefault.jpg" alt="">` : `<div class="sp-thumb sp-thumb--icon">${ic('video', 22)}</div>`}
+    <div class="tp-grow tp-stack tp-stack--sm"><b class="tp-ellipsis tp-bidi">${esc(title)}</b><span class="tp-small tp-muted">${esc(sub)}</span></div></div></div></div>`;
+  const img = box.querySelector('img.sp-thumb');
+  if (img) img.addEventListener('error', () => { img.outerHTML = `<div class="sp-thumb sp-thumb--icon">${ic('video', 22)}</div>`; }, { once: true });
   if (!srcTouched) {
-    const v = ctx?.page === 'studio' && ctx.hasFile ? 'studio' : ctx?.page === 'watch' ? 'url' : 'file';
+    const v = ctx?.page === 'studio' && (ctx.hasFile || (ctx.videoId && settings.aiEngine !== 'api')) ? 'studio' : ctx?.page === 'watch' ? 'url' : 'file';
     $(`input[name=src][value=${v}]`).checked = true;
     syncSrc();
   }
 }
 
 function syncSrc() {
-  const v = $('input[name=src]:checked').value;
+  const v = $('input[name=src]:checked')?.value || 'file';
   show($('#srcFile'), v === 'file');
   show($('#srcUrl'), v === 'url');
-  $('#runBtn').textContent = v === 'express' ? '⚡ Générer le SEO (sans écoute)' : '🚀 Analyser la vidéo & générer le SEO';
+  $('#srcHelp').textContent = t('run.help.' + v);
+  $('#runBtn').innerHTML = `${ic(v === 'express' ? 'zap' : 'sparkles', 17)} ${esc(v === 'express' ? t('run.goQuick') : t('run.go'))}`;
 }
 
 /* =============== Lancement =============== */
 function showError(msg) {
   const el = $('#runErr');
-  el.innerHTML = msg ? '⚠️ ' + esc(msg) : '';
+  el.innerHTML = msg ? `<div class="tp-alert tp-alert--danger">${ic('alert', 15)}<span>${esc(msg)}</span></div>` : '';
   show(el, !!msg);
 }
 
@@ -211,12 +169,15 @@ function showProgress(p) {
   show(el, true);
   const api = settings.aiEngine === 'api';
   const order = STEPS.filter((s) => s.id !== 'done' && (api ? s.id !== 'gemini' : s.id !== 'upload' && s.id !== 'processing'));
-  const idx = order.findIndex((s) => s.id === p.step);
+  const idx = Math.max(0, order.findIndex((s) => s.id === p.step));
   const pct = p.pct != null ? Math.round(p.pct * 100) : null;
-  el.innerHTML = `<div class="row"><b>${esc(order[idx]?.label || p.step)}</b>${pct != null ? `<span class="muted">${pct} %</span>` : ''}<span class="muted small clamp">${esc(p.detail || '')}</span><span class="sp"></span><button class="small ghost" id="cancelBtn">✕ Annuler</button></div>
-    <div class="bar ${pct == null ? 'indet' : ''}"><i style="width:${pct ?? 30}%"></i></div>
-    <div class="steps">${order.map((s, i) => `<span class="${i < idx ? 'done' : i === idx ? 'on' : ''}">${i < idx ? '✓ ' : ''}${esc(s.label)}</span>`).join('')}</div>
-    ${p.warn ? `<div class="small muted">⚠️ ${esc(p.warn)}</div>` : ''}`;
+  el.innerHTML = `<div class="tp-progress">
+    <div class="tp-row tp-row--nowrap"><span class="tp-spinner"></span><b>${esc(t('step.' + (order[idx]?.id || p.step)))}</b>${pct != null ? `<span class="tp-faint">${pct}%</span>` : ''}<span class="tp-grow tp-ellipsis tp-small tp-muted">${esc(p.detail || '')}</span>
+      <button class="tp-btn tp-btn--ghost tp-btn--sm" id="cancelBtn">${ic('x', 13)} ${esc(t('common.cancel'))}</button></div>
+    <div class="tp-bar ${pct == null ? 'tp-bar--indet' : ''}"><i style="width:${pct ?? 30}%"></i></div>
+    <div class="tp-steps">${order.map((s, i) => `<span class="tp-step ${i < idx ? 'tp-step--done' : i === idx ? 'tp-step--on' : ''}">${i < idx ? ic('check', 11) : ''}${esc(t('step.' + s.id))}</span>`).join('')}</div>
+    ${p.warn ? `<div class="tp-alert tp-alert--warn">${ic('alert', 14)}<span>${esc(p.warn)}</span></div>` : ''}
+  </div>`;
   $('#cancelBtn').onclick = cancelRun;
 }
 
@@ -230,21 +191,17 @@ function cancelRun() {
 
 async function runNow() {
   showError('');
-  if (settings.aiEngine === 'api' && !settings.geminiKey) {
-    showError('Mode API sans clé : ajoutez la clé Gemini (⚙️ Moteur IA & clés) ou choisissez « 💎 Gemini Pro — mon abonnement ».');
-    return;
-  }
+  if (settings.aiEngine === 'api' && !settings.geminiKey) return showError(t('err.apiNoKey'));
   const src = $('input[name=src]:checked').value;
-  // la chaîne ouverte dans Studio choisit son profil ; sinon celui du menu
   const channelMatch = ctx?.channelId && settings.profiles.some((p) => p.channelId === ctx.channelId);
   const extra = { keyword: $('#kwIn').value.trim(), notes: $('#notesIn').value.trim(), lyrics: $('#lyricsIn').value.trim(), profileId: channelMatch ? undefined : profile().id };
   const options = { mediaMode: $('#mediaMode').value, transcribeLyrics: $('#lyricsChk').checked, competitors: $('#compChk').checked, webTrends: $('#webChk').checked, reanalyze: $('#reChk').checked };
 
   if (src === 'studio') {
-    if (ctx?.page !== 'studio' || ctx.stale) return showError('Ouvrez l\'onglet YouTube Studio où vous importez la vidéo (ou rechargez-le), ou choisissez « Fichier de l\'ordinateur ».');
+    if (ctx?.page !== 'studio' || ctx.stale) return showError(t('err.openStudio'));
     let r;
-    try { r = await chrome.tabs.sendMessage(ctx.tabId, { type: 'studio:run', options: { mode: 'full', reanalyze: options.reanalyze, extra, runOptions: options } }); } catch (e) { r = { ok: false, error: 'Studio ne répond pas : rechargez l\'onglet (F5).' }; }
-    if (!r?.ok) return showError(r?.error || 'Impossible de lancer l\'analyse dans Studio.');
+    try { r = await chrome.tabs.sendMessage(ctx.tabId, { type: 'studio:run', options: { mode: 'full', reanalyze: options.reanalyze, extra, runOptions: options } }); } catch (e) { r = { ok: false, error: t('err.studioNoAnswer') }; }
+    if (!r?.ok) return showError(r?.error || t('err.studioStart'));
     studioJob = { key: r.data.key };
     $('#runBtn').disabled = true;
     showProgress({ step: 'prepare' });
@@ -252,10 +209,10 @@ async function runNow() {
   }
 
   const file = src === 'file' ? $('#fileIn').files[0] : null;
-  if (src === 'file' && !file) return showError('Choisissez un fichier vidéo ou audio.');
+  if (src === 'file' && !file) return showError(t('err.pickFile'));
   const youtubeUrl = src === 'url' ? $('#urlIn').value.trim() : '';
   const urlId = youtubeUrl.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/)?.[1] || '';
-  if (src === 'url' && !urlId) return showError('Lien YouTube invalide.');
+  if (src === 'url' && !urlId) return showError(t('err.badLink'));
   const studio = ctx?.page === 'studio' ? ctx : null;
   const baseCtx = {
     ...extra,
@@ -288,9 +245,10 @@ async function runNow() {
 /* =============== Résultat =============== */
 function showPack(p) {
   pack = p;
-  const chosen = p.seo.chosenTitle && p.seo.titles.find((t) => t.text === p.seo.chosenTitle);
+  const chosen = p.seo.chosenTitle && p.seo.titles.find((x) => x.text === p.seo.chosenTitle);
   edit = { title: chosen?.text || p.seo.titles[0]?.text || '', description: p.seo.description, tags: [...p.seo.tags] };
   renderResult();
+  show($('#actionBar'), $('#tab-video').classList.contains('on'));
 }
 
 const persist = debounce(async () => {
@@ -301,195 +259,199 @@ const persist = debounce(async () => {
   await savePack(pack);
 }, 800);
 
-function scoreHead() {
+function scoreCard() {
   const r = Post.rescore(pack, edit);
-  const important = r.issues.filter((i) => i.level !== 'info');
+  const src = pack.source?.fileName || pack.source?.youtubeUrl || pack.key;
   return {
-    html: `<div class="score-head">${badge(r.score.overall, 'big')}<div><b>Score d'optimisation</b><div class="parts"><span>Titre <b>${r.score.title}</b></span><span>Description <b>${r.score.description}</b></span><span>Tags <b>${r.score.tags}</b></span></div></div></div>`,
-    issues: r.issues,
-    important,
-    detail: r.detail
+    html: `<div class="tp-card"><div class="tp-card__body">
+      <div class="sp-scorecard">${I.ring(r.score.overall, 58, t('score.overall'))}
+        <div class="tp-stack tp-stack--sm tp-grow"><b class="tp-h2">${esc(t('score.overall'))}</b>
+          <div class="tp-subscores"><span>${esc(t('score.titleShort'))} <b>${r.score.title}</b></span><span>${esc(t('score.descShort'))} <b>${r.score.description}</b></span><span>${esc(t('score.tagsShort'))} <b>${r.score.tags}</b></span></div>
+          <span class="tp-tiny tp-faint tp-ellipsis">${ic('file', 11)} ${esc(src)} · ${esc(F.ago(pack.createdAt))}</span></div></div>
+      ${pack.seo.audienceInsight ? `<div class="tp-alert tp-alert--info">${ic('users', 14)}<span><b>${esc(t('result.audience'))}</b> <span class="tp-bidi">${esc(pack.seo.audienceInsight)}</span></span></div>` : ''}
+      ${pack.warnings?.length ? `<div class="tp-alert tp-alert--warn">${ic('info', 14)}<span>${pack.warnings.map(esc).join('<br>')}</span></div>` : ''}
+    </div></div>`,
+    issues: r.issues
   };
 }
 
 function issuesHtml(list, notes = []) {
-  return `<ul class="issues small">${list.map((i) => `<li class="${i.level}">${esc(i.msg)}${i.ref ? ` <a href="${esc(i.ref)}" target="_blank" rel="noopener">Aide YouTube</a>` : ''}</li>`).join('')}
-    ${notes.map((n) => `<li>🤖 ${esc(n)}</li>`).join('')}</ul>`;
+  if (!list.length && !notes.length) return `<div class="tp-alert tp-alert--good">${ic('shield', 14)}<span>${esc(t('policy.allGood'))}</span></div>`;
+  const icon = { error: 'alert', warn: 'alert', info: 'info' };
+  return `<ul class="tp-issues">${list.map((i) => `<li class="${i.level}">${ic(icon[i.level], 14)}<span>${esc(i.msg)}${i.ref ? ` <a href="${esc(i.ref)}" target="_blank" rel="noopener">${esc(t('policy.help'))}</a>` : ''}</span></li>`).join('')}
+    ${notes.map((n) => `<li class="info">${ic('sparkles', 14)}<span>${esc(n)}</span></li>`).join('')}</ul>`;
+}
+
+function titlesHtml(s) {
+  return `<div class="tp-list" id="titles">${s.titles.map((x, i) => `<div class="tp-item tp-item--click ${x.text === edit.title ? 'tp-item--on' : ''}" data-act="pickTitle" data-i="${i}">
+      ${I.pill(x.score, t('score.title'))}<div class="tp-item__main"><div class="tp-item__title tp-bidi">${esc(x.text)}</div><div class="tp-item__meta">${esc([x.hook, x.angle].filter(Boolean).join(' — '))}</div></div>
+      <div class="tp-item__act"><button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-act="copyTitle" data-i="${i}" title="${esc(t('common.copy'))}">${ic('copy', 13)}</button></div></div>`).join('')}</div>
+    <label class="tp-field"><span class="tp-label">${esc(t('result.testTitle'))}</span><input id="customTitle" class="tp-input tp-bidi" placeholder="${esc(t('result.testTitlePh'))}"></label>
+    <div id="customScore" class="tp-small"></div>
+    ${s.abTitles?.length ? `<details><summary class="tp-small tp-muted">${ic('layers', 13)} ${esc(t('studio.abTitles'))}</summary><div class="tp-list" style="margin-top:6px">${s.abTitles.map((x) => `<div class="tp-item">${I.pill(x.score)}<div class="tp-item__main tp-bidi">${esc(x.text)}</div></div>`).join('')}</div><button class="tp-btn tp-btn--sm" data-act="copyAB" style="margin-top:6px">${ic('copy', 13)} ${esc(t('result.copyAB'))}</button></details>` : ''}`;
+}
+
+function descHtml() {
+  return `<textarea id="descEdit" class="tp-textarea tp-bidi" rows="12">${esc(edit.description)}</textarea>
+    <div class="tp-row"><button class="tp-btn tp-btn--primary tp-btn--sm" data-act="insDesc">${ic('upload', 13)} ${esc(t('studio.insertDescription'))}</button><button class="tp-btn tp-btn--sm" data-act="copyDesc">${ic('copy', 13)} ${esc(t('common.copy'))}</button><span class="tp-grow"></span><span class="tp-counter" id="descCount"></span></div>`;
+}
+
+function tagsHtml(s) {
+  return `<div class="tp-chips" id="tagChips"></div>
+    <div class="tp-inputgroup"><input id="tagAdd" class="tp-input" placeholder="${esc(t('result.addTagPh'))}"><button class="tp-btn tp-btn--sm" data-act="insTags">${ic('upload', 13)} ${esc(t('result.insertReplace'))}</button><button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-act="copyTags" title="${esc(t('common.copy'))}">${ic('copy', 13)}</button></div>
+    <div class="tp-row"><span class="tp-small tp-muted">${ic('hash', 13)}</span>${s.hashtags.map((h) => `<span class="tp-chip tp-chip--accent tp-bidi">${esc(h)}</span>`).join('')}<span class="tp-grow"></span><button class="tp-btn tp-btn--ghost tp-btn--sm" data-act="copyHashtags">${ic('copy', 13)} ${esc(t('studio.copyHashtags'))}</button></div>`;
+}
+
+function timelineHtml(s) {
+  if (!s.chapters?.length) return `<div class="tp-small tp-muted">${esc(t('result.noChapters'))}</div>`;
+  return `<div class="tp-list">${s.chapters.map((c) => {
+    const hot = c.label.startsWith('🔥');
+    return `<div class="tp-item"><span class="tp-chip ${hot ? 'tp-chip--hot' : ''}">${hot ? ic('flame', 12) : ic('clock', 12)}${F.ts(c.t)}</span><div class="tp-item__main tp-bidi">${esc(c.label.replace(/^🔥\s*/, ''))}</div></div>`;
+  }).join('')}</div><div class="tp-tiny tp-faint">${esc(t('result.timelineNote'))}</div>`;
 }
 
 function analysisHtml(a, p) {
-  if (!a) return `<div class="box small muted">Mode express : pas d'écoute. Lancez l'analyse avec le fichier ou le lien public pour obtenir style, rythme, refrain, meilleurs moments et timeline.</div>`;
+  if (!a) return `<div class="tp-small tp-muted">${esc(t('result.noListening'))}</div>`;
   const m = a.music || {};
   const local = p.ctx?.localBpm;
   const kv = [
-    ['Contenu', esc(a.content_type)],
-    ['Style', m.primary_genre ? `<b>${esc(m.primary_genre)}</b>${m.subgenres?.length ? ' · ' + esc(m.subgenres.join(', ')) : ''}${m.regional_style ? ` <span class="muted">(${esc(m.regional_style)})</span>` : ''}${m.genre_confidence ? ` <span class="muted">${Math.round(m.genre_confidence * 100)} %</span>` : ''}` : ''],
-    ['Fusion', esc(m.fusion || '')],
-    ['Tempo', m.bpm || local ? `${m.bpm ? `${Math.round(m.bpm)} BPM (Gemini)` : ''}${m.bpm && local ? ' · ' : ''}${local ? `${local} BPM (mesuré${p.media?.bpm?.alt ? ` ou ${p.media.bpm.alt}` : ''})` : ''}${m.time_signature ? ' · ' + esc(m.time_signature) : ''}${m.pulse ? ' · ' + esc(m.pulse) : ''}` : ''],
-    ['Rythme', esc(m.rhythm_pattern || '')],
-    ['Percussions', m.percussion?.length ? esc(m.percussion.join(', ')) : ''],
-    ['Tonalité', esc([m.key, m.scale_or_maqam].filter(Boolean).join(' · '))],
-    ['Énergie', m.energy ? `${m.energy}/10` : ''],
-    ['Ambiance', m.mood?.length ? m.mood.map((x) => `<span class="chip">${esc(x)}</span>`).join(' ') : ''],
-    ['Instruments', m.instruments?.length ? esc(m.instruments.join(', ')) : ''],
-    ['Voix', esc(m.vocals || '')],
-    ['Langue', a.language ? `${esc(a.language)}${a.dialect ? ` · <b>${esc(a.dialect)}</b>` : ''}${a.language_evidence ? ` <span class="muted">— ${esc(a.language_evidence)}</span>` : ''}` : ''],
-    ['Public (pays)', a.target_countries?.length ? esc(a.target_countries.join(', ')) : ''],
-    ['Refrain', m.hook_line ? `« <b>${esc(m.hook_line)}</b> »${m.hook_start != null ? ` à ${F.ts(m.hook_start)}` : ''}` : ''],
-    ['Thème', esc(m.lyrics_theme || '')],
-    ['Moments', m.listening_moments?.length ? esc(m.listening_moments.join(', ')) : ''],
-    ['Recherché comme', m.genre_search_terms?.length ? m.genre_search_terms.map((x) => `<span class="chip click" data-kwseed="${esc(x)}" title="Analyser ce mot-clé">${esc(x)}</span>`).join(' ') : ''],
-    ['Reprise', a.is_cover ? `oui — ${esc(a.cover_original || '?')}` : ''],
-    ['Public', esc(a.audience || '')],
-    ['Short idéal', a.best_short?.end ? `${F.ts(a.best_short.start)} → ${F.ts(a.best_short.end)} <span class="muted">${esc(a.best_short.reason || '')}</span>` : ''],
-    ['Confiance', a.confidence != null ? `${Math.round(a.confidence * 100)} %` : '']
+    [t('an.style'), m.primary_genre ? `<b class="tp-bidi">${esc(m.primary_genre)}</b>${m.subgenres?.length ? ' · ' + esc(m.subgenres.join(', ')) : ''}${m.regional_style ? ` <span class="tp-faint">(${esc(m.regional_style)})</span>` : ''}` : ''],
+    [t('an.fusion'), esc(m.fusion || '')],
+    [t('an.tempo'), m.bpm || local ? `${m.bpm ? `${Math.round(m.bpm)} BPM` : ''}${m.bpm && local ? ' · ' : ''}${local ? `${local} BPM ${esc(t('an.measured'))}${p.media?.bpm?.alt ? ` / ${p.media.bpm.alt}` : ''}` : ''}${m.time_signature ? ' · ' + esc(m.time_signature) : ''}${m.pulse ? ' · ' + esc(m.pulse) : ''}` : ''],
+    [t('an.rhythm'), esc(m.rhythm_pattern || '')],
+    [t('an.percussion'), esc((m.percussion || []).join(', '))],
+    [t('an.key'), esc([m.key, m.scale_or_maqam].filter(Boolean).join(' · '))],
+    [t('an.energy'), m.energy ? `${m.energy}/10` : ''],
+    [t('an.mood'), m.mood?.length ? m.mood.map((x) => `<span class="tp-chip">${esc(x)}</span>`).join(' ') : ''],
+    [t('an.instruments'), esc((m.instruments || []).join(', '))],
+    [t('an.vocals'), esc(m.vocals || '')],
+    [t('an.language'), a.language ? `${esc(a.language)}${a.dialect ? ` · <b>${esc(a.dialect)}</b>` : ''}` : ''],
+    [t('an.countries'), esc((a.target_countries || []).map(countryName).join(', '))],
+    [t('an.hook'), m.hook_line ? `« <b class="tp-bidi">${esc(m.hook_line)}</b> »${m.hook_start != null ? ` · ${F.ts(m.hook_start)}` : ''}` : ''],
+    [t('an.searchedAs'), (m.genre_search_terms || []).map((x) => `<span class="tp-chip tp-chip--click tp-bidi" data-kwseed="${esc(x)}">${esc(x)}</span>`).join(' ')],
+    [t('an.short'), a.best_short?.end ? `${F.ts(a.best_short.start)} → ${F.ts(a.best_short.end)} <span class="tp-faint">${esc(a.best_short.reason || '')}</span>` : ''],
+    [t('an.cover'), a.is_cover ? esc(a.cover_original || '?') : ''],
+    [t('an.confidence'), a.confidence != null ? `${Math.round(a.confidence * 100)}%` : '']
   ].filter(([, v]) => v);
   const cands = (m.rhythm_candidates || []).filter((c) => c?.name);
-  return `<details class="box" open><summary>🎧 Ce que Gemini a entendu et vu</summary>
-    <div class="small">${esc(a.summary || '')}</div>
-    <dl class="kv">${kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
-    ${cands.length ? `<details><summary class="small">🥁 Styles / rythmes envisagés</summary>${cands.map((c) => `<div class="hbar"><span>${esc(c.name)}</span>${bar((c.confidence || 0) * 100)}<span>${Math.round((c.confidence || 0) * 100)} %</span></div><div class="tiny muted" style="margin:-2px 0 4px">${esc(c.evidence || '')}</div>`).join('')}</details>` : ''}
-    ${a.highlights?.length ? `<div><b class="small">🔥 Meilleurs moments</b>${a.highlights.map((h) => `<div class="item small"><b>${F.ts(h.start)}</b><div class="grow">${esc(h.label)} <span class="chip">${esc(h.kind || '')}</span><div class="tiny muted">${esc(h.why || '')}</div></div></div>`).join('')}</div>` : ''}
-    ${a.timeline?.length ? `<details><summary class="small">⏱️ Structure complète (${a.timeline.length} repères)</summary><table><tr><th>Début</th><th>Partie</th><th>Type</th></tr>${a.timeline.map((t) => `<tr><td>${F.ts(t.start)}</td><td>${esc(t.label)}</td><td class="muted">${esc(t.kind || '')}</td></tr>`).join('')}</table></details>` : ''}
-    ${m.lyrics ? `<details><summary class="small">🎤 Paroles transcrites</summary><div class="lyrics">${esc(m.lyrics)}</div><button class="small" data-act="copyLyrics">Copier les paroles</button></details>` : ''}
-    ${a.uncertain?.length ? `<div class="small muted">❔ Incertain : ${esc(a.uncertain.join(' · '))}</div>` : ''}
-  </details>`;
+  return `${a.summary ? `<div class="tp-small tp-muted">${esc(a.summary)}</div>` : ''}
+    <dl class="tp-kv">${kv.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join('')}</dl>
+    ${cands.length ? `<div class="tp-stack tp-stack--sm"><b class="tp-small">${esc(t('an.candidates'))}</b>${cands.map((c) => `<div class="tp-meter" title="${esc(c.evidence || '')}"><span class="tp-ellipsis tp-bidi">${esc(c.name)}</span>${bar((c.confidence || 0) * 100)}<span class="tp-num">${Math.round((c.confidence || 0) * 100)}%</span></div>`).join('')}</div>` : ''}
+    ${a.highlights?.length ? `<div class="tp-stack tp-stack--sm"><b class="tp-small">${esc(t('an.highlights'))}</b><div class="tp-list">${a.highlights.map((h) => `<div class="tp-item"><span class="tp-chip tp-chip--hot">${ic('flame', 12)}${F.ts(h.start)}</span><div class="tp-item__main"><div class="tp-item__title tp-bidi">${esc(h.label)}</div><div class="tp-item__meta">${esc(h.why || '')}</div></div></div>`).join('')}</div></div>` : ''}
+    ${m.lyrics ? `<details><summary class="tp-small tp-muted">${ic('mic', 13)} ${esc(t('an.lyrics'))}</summary><div class="tp-pre" style="margin-top:6px">${esc(m.lyrics)}</div><button class="tp-btn tp-btn--sm" data-act="copyLyrics" style="margin-top:6px">${ic('copy', 13)} ${esc(t('common.copy'))}</button></details>` : ''}
+    ${a.uncertain?.length ? `<div class="tp-tiny tp-faint">${esc(t('an.uncertain'))} ${esc(a.uncertain.join(' · '))}</div>` : ''}`;
+}
+
+function keywordsHtml(p) {
+  const kw = p.keywords, c = p.competition, loc = kw?.locale;
+  const geo = loc?.gl || '';
+  return `${p.seo.keywordStrategy ? `<div class="tp-alert tp-alert--info">${ic('target', 14)}<span>${esc(p.seo.keywordStrategy)}</span></div>` : ''}
+    ${loc ? `<div class="tp-tiny tp-faint">${esc(t('kw.searchedIn', { lang: langName(loc.hl), countries: (loc.countries || [loc.gl]).filter(Boolean).map(countryName).join(', ') || '—' }))}</div>` : ''}
+    ${c ? `<div class="tp-kpis"><div class="tp-kpi"><b>${c.overall}</b><span>${esc(t('kw.score'))}</span></div><div class="tp-kpi"><b>${c.demand}</b><span>${esc(t('insight.demand'))}</span></div><div class="tp-kpi"><b>${100 - c.competition}</b><span>${esc(t('kw.ease'))}</span></div><div class="tp-kpi"><b>${F.num(c.medianViews)}</b><span>${esc(t('kw.medianViews'))}</span></div></div>` : ''}
+    ${kw?.compared?.length > 1 ? `<div class="tp-small">${esc(t('kw.compared'))} ${kw.compared.map((x) => `<span class="tp-chip tp-bidi">${esc(x.kw)} ${I.pill(x.overall)}</span>`).join(' ')}</div>` : ''}
+    ${kw?.items?.length ? `<table class="tp-table"><thead><tr><th>${esc(t('kw.keyword'))}</th><th>${esc(t('kw.popularity'))}</th><th class="tp-num">${esc(t('kw.volume'))}</th><th></th></tr></thead><tbody>
+      ${kw.items.slice(0, 20).map((k) => `<tr class="sp-kwrow"><td class="tp-bidi">${esc(k.kw)}</td><td class="sp-kwbar">${bar(k.popularity)}</td><td class="tp-num tp-small">${k.volLabel ? esc(k.volLabel) : '<span class="tp-faint">—</span>'}</td>
+        <td class="tp-num"><a class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" href="${esc(trendsUrl(k.kw, geo))}" target="_blank" rel="noopener" title="${esc(t('kw.trendsLink'))}">${ic('trending', 13)}</a><button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-act="addTag" data-kw="${esc(k.kw)}" title="${esc(t('kw.addTag'))}">${ic('plus', 13)}</button></td></tr>`).join('')}
+    </tbody></table>` : ''}
+    ${c?.videos?.length ? `<details><summary class="tp-small tp-muted">${ic('users', 13)} ${esc(t('kw.topVideos', { kw: c.kw }))}</summary><div class="tp-list" style="margin-top:6px">${c.videos.map((v) => `<div class="tp-item sp-vid"><div class="tp-item__main"><a class="tp-bidi" href="https://www.youtube.com/watch?v=${esc(v.id)}" target="_blank" rel="noopener">${esc(v.title)}</a><div class="tp-item__meta">${esc(v.channelTitle)} · ${F.num(v.views)} ${esc(t('watch.views'))} · ${F.num(v.subs)} ${esc(t('watch.subs'))}</div></div></div>`).join('')}</div></details>` : ''}`;
 }
 
 function trendsHtml(p) {
   const yt = p.trends?.youtube, web = p.trends?.web;
   if (!yt && !web) return '';
-  return `<details class="box"><summary>📈 Tendances du moment utilisées</summary>
-    ${yt ? `<div class="small"><b>YouTube Tendances Musique (${esc(yt.region)})</b></div>
-      ${yt.hashtags?.length ? `<div class="chips">${yt.hashtags.map((h) => `<span class="chip click" data-copy="${esc(h.tag)}" title="Copier">${esc(h.tag)} ×${h.n}</span>`).join('')}</div>` : ''}
-      ${yt.tags?.length ? `<div class="chips">${yt.tags.map((t) => `<span class="chip click" data-act="addTag" data-kw="${esc(t.tag)}" title="Ajouter aux tags">${esc(t.tag)} ×${t.n}</span>`).join('')}</div>` : ''}` : ''}
-    ${web ? `<div class="small"><b>Web (recherche Google par Gemini)</b> ${esc(web.notes || '')}</div>
-      ${web.keywords?.length ? `<div class="chips">${web.keywords.map((k) => `<span class="chip click" data-kwseed="${esc(k)}" title="Analyser ce mot-clé">${esc(k)}</span>`).join('')}</div>` : ''}
-      ${web.hashtags?.length ? `<div class="chips">${web.hashtags.map((h) => `<span class="chip click" data-copy="${esc(h)}" title="Copier">${esc(h)}</span>`).join('')}</div>` : ''}
-      ${web.sources?.length ? `<div class="tiny muted">Sources : ${web.sources.map((x) => `<a href="${esc(x.uri)}" target="_blank" rel="noopener">${esc(x.title || 'lien')}</a>`).join(' · ')}</div>` : ''}` : ''}
-    <div class="tiny muted">Gemini n'utilise une tendance que si elle correspond vraiment à la chanson (règle YouTube sur les métadonnées trompeuses).</div>
-  </details>`;
+  return `${yt ? `<b class="tp-small">${esc(t('trends.youtube', { country: countryName(yt.region) }))}</b>
+      ${yt.hashtags?.length ? `<div class="tp-chips">${yt.hashtags.map((h) => `<span class="tp-chip tp-chip--click tp-bidi" data-copy="${esc(h.tag)}" title="${esc(t('common.copy'))}">${esc(h.tag)} <span class="tp-faint">×${h.n}</span></span>`).join('')}</div>` : ''}
+      ${yt.tags?.length ? `<div class="tp-chips">${yt.tags.map((x) => `<span class="tp-chip tp-chip--click tp-bidi" data-act="addTag" data-kw="${esc(x.tag)}" title="${esc(t('kw.addTag'))}">${esc(x.tag)} <span class="tp-faint">×${x.n}</span></span>`).join('')}</div>` : ''}` : ''}
+    ${web ? `<b class="tp-small">${esc(t('trends.web'))}</b>${web.notes ? `<div class="tp-small tp-muted">${esc(web.notes)}</div>` : ''}
+      ${web.keywords?.length ? `<div class="tp-chips">${web.keywords.map((k) => `<span class="tp-chip tp-chip--click tp-bidi" data-kwseed="${esc(k)}">${esc(k)}</span>`).join('')}</div>` : ''}
+      ${web.hashtags?.length ? `<div class="tp-chips">${web.hashtags.map((h) => `<span class="tp-chip tp-chip--accent tp-chip--click tp-bidi" data-copy="${esc(h)}">${esc(h)}</span>`).join('')}</div>` : ''}
+      ${web.sources?.length ? `<div class="tp-tiny tp-faint">${esc(t('trends.sources'))} ${web.sources.map((x) => `<a href="${esc(x.uri)}" target="_blank" rel="noopener">${esc(x.title || 'link')}</a>`).join(' · ')}</div>` : ''}` : ''}
+    <div class="tp-tiny tp-faint">${esc(t('trends.note'))}</div>`;
 }
 
-function keywordsHtml(p) {
-  const kw = p.keywords;
-  const c = p.competition;
-  if (!kw?.items?.length && !c) return '';
-  const loc = kw?.locale;
-  return `<details class="box"><summary>🔑 Mots-clés réels — principal : « ${esc(p.seo.mainKeyword)} »</summary>
-    ${loc ? `<div class="tiny muted">Recherches YouTube en « ${esc(loc.hl)} » · pays : ${esc((loc.countries || [loc.gl]).filter(Boolean).join(', ') || '—')}</div>` : ''}
-    ${p.seo.keywordStrategy ? `<div class="small">🎯 ${esc(p.seo.keywordStrategy)}</div>` : ''}
-    ${kw?.compared?.length > 1 ? `<div class="small">⚖️ Comparés : ${kw.compared.map((x) => `« ${esc(x.kw)} » ${badge(x.overall)}`).join(' · ')}</div>` : ''}
-    ${c ? `<div class="row small"><span>Demande ${badge(c.demand)}</span><span>Concurrence ${badge(100 - c.competition)}</span><span>Score ${badge(c.overall)}</span><span class="muted">vues médianes ${F.num(c.medianViews)} · abonnés médians ${F.num(c.medianSubs)}</span></div>` : ''}
-    <table><tr><th>Recherche YouTube</th><th style="width:90px">Popularité</th><th></th></tr>
-    ${(kw?.items || []).slice(0, 20).map((k) => `<tr><td>${esc(k.kw)}</td><td>${bar(k.popularity)}</td><td class="num"><button class="small" data-act="addTag" data-kw="${esc(k.kw)}" title="Ajouter aux tags">+ tag</button></td></tr>`).join('')}</table>
-    ${c?.videos?.length ? `<details><summary class="small">🥊 Top vidéos sur « ${esc(c.kw)} »</summary>${c.videos.map((v) => `<div class="item vid small"><div class="grow"><a href="https://www.youtube.com/watch?v=${esc(v.id)}" target="_blank">${esc(v.title)}</a><div class="muted tiny">${esc(v.channelTitle)} · ${F.num(v.views)} vues · ${F.num(v.subs)} abonnés · ${Math.round(v.ageDays)} j</div></div></div>`).join('')}</details>` : ''}
-  </details>`;
+function extrasHtml(s) {
+  return `${s.pinnedComment ? `<div class="tp-item">${ic('message', 15)}<div class="tp-item__main"><div class="tp-item__meta">${esc(t('result.pinned'))}</div><div class="tp-bidi">${esc(s.pinnedComment)}</div></div><button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-act="copyPinned">${ic('copy', 13)}</button></div>` : ''}
+    ${s.thumbnail ? `<div class="tp-item">${ic('image', 15)}<div class="tp-item__main"><div class="tp-item__meta">${esc(t('result.thumbnail'))}</div><div class="tp-chips">${(s.thumbnail.texts || []).map((x) => `<span class="tp-chip tp-bidi">${esc(x)}</span>`).join('')}</div><div class="tp-small tp-muted">${esc(s.thumbnail.concept || '')}</div></div>${s.thumbnail.prompt ? `<button class="tp-btn tp-btn--ghost tp-btn--sm" data-act="copyThumb" title="${esc(t('result.copyImagePrompt'))}">${ic('copy', 13)}</button>` : ''}</div>` : ''}
+    ${s.short?.title ? `<div class="tp-item">${ic('video', 15)}<div class="tp-item__main"><div class="tp-item__meta">${esc(t('result.short'))}</div><b class="tp-bidi">${esc(s.short.title)}</b><div class="tp-small tp-muted tp-bidi">${esc(s.short.description || '')}</div></div></div>` : ''}`;
 }
 
 function renderResult() {
   const box = $('#result');
   if (!pack) { box.innerHTML = ''; return; }
   const s = pack.seo;
-  const head = scoreHead();
-  const tagLen = P.tagsLength(edit.tags);
-  const src = pack.source?.fileName || pack.source?.youtubeUrl || pack.key;
-  box.innerHTML = `
-    <div class="box">
-      <div class="row small muted"><span>📄 ${esc(src)}</span><span class="sp"></span><span>${esc(F.ago(pack.createdAt))}</span></div>
-      <div id="scoreHead">${head.html}</div>
-      ${s.audienceInsight ? `<div class="small">🧠 <b>Psychologie du public :</b> ${esc(s.audienceInsight)}</div>` : ''}
-    </div>
-    ${pack.warnings?.length ? `<div class="note small">ℹ️ ${pack.warnings.map(esc).join('<br>')}</div>` : ''}
-    ${analysisHtml(pack.analysis, pack)}
-    ${keywordsHtml(pack)}
-    ${trendsHtml(pack)}
-    <div class="box">
-      <div class="row"><h2>🏆 Titres</h2><span class="sp"></span><span class="muted tiny">cliquez pour choisir</span></div>
-      <div id="titles">${s.titles.map((t, i) => `<div class="item tt" data-act="pickTitle" data-i="${i}" ${t.text === edit.title ? 'style="outline:2px solid var(--good)"' : ''}>
-        ${badge(t.score)}<div class="grow"><div>${esc(t.text)}</div><div class="hook">${esc(t.hook || '')}${t.angle ? ' — ' + esc(t.angle) : ''}</div></div>
-        <button class="small ghost" data-act="copyTitle" data-i="${i}" title="Copier">📋</button></div>`).join('')}</div>
-      <label>Tester mon propre titre<input id="customTitle" placeholder="Tapez un titre pour voir son score"></label>
-      <div id="customScore" class="small muted"></div>
-      ${s.abTitles?.length ? `<details><summary class="small">🧪 3 titres pour « Tester et comparer » (A/B)</summary>${s.abTitles.map((t) => `<div class="item small">${badge(t.score)}<div class="grow">${esc(t.text)}</div></div>`).join('')}<button class="small" data-act="copyAB">Copier les 3</button></details>` : ''}
-    </div>
-    <div class="box">
-      <div class="row"><h2>📝 Description</h2><span class="sp"></span><span class="counter" id="descCount"></span></div>
-      <textarea id="descEdit" rows="12">${esc(edit.description)}</textarea>
-      <div class="row"><button class="small" data-act="insDesc">➡ Insérer dans Studio</button><button class="small" data-act="copyDesc">📋 Copier</button></div>
-    </div>
-    <div class="box">
-      <div class="row"><h2>🏷️ Tags</h2><span class="sp"></span><span class="counter ${tagLen > 500 ? 'over' : ''}" id="tagCount">${edit.tags.length} tags · ${tagLen}/500</span></div>
-      <div class="chips" id="tagChips">${edit.tags.map((t, i) => `<span class="chip">${esc(t)}<button data-act="rmTag" data-i="${i}" title="Retirer">×</button></span>`).join('')}</div>
-      <div class="row"><input id="tagAdd" placeholder="Ajouter un tag + Entrée"><button class="small" data-act="insTags">➡ Insérer (remplace)</button><button class="small" data-act="copyTags">📋</button></div>
-    </div>
-    <div class="box">
-      <div class="row"><h3># Hashtags</h3><span class="chips">${s.hashtags.map((h) => `<span class="chip">${esc(h)}</span>`).join('')}</span><span class="sp"></span><button class="small" data-act="copyHashtags">📋</button></div>
-      ${s.chapters?.length ? `<details><summary class="small">⏱️ Timeline / chapitres (${s.chapters.length}) — incluse dans la description</summary><div class="small">${s.chapters.map((c) => `${F.ts(c.t)} ${esc(c.label)}`).join('<br>')}</div></details>` : '<div class="small muted">⏱️ Pas de chapitres (vidéo trop courte ou moins de 3 parties de 10 s).</div>'}
-      ${s.pinnedComment ? `<div class="small"><b>💬 Commentaire à épingler :</b> ${esc(s.pinnedComment)} <button class="small ghost" data-act="copyPinned">📋</button></div>` : ''}
-      ${s.thumbnail ? `<details><summary class="small">🖼️ Miniature</summary><div class="small">${(s.thumbnail.texts || []).map((t) => `<span class="chip">${esc(t)}</span>`).join(' ')}<p>${esc(s.thumbnail.concept || '')}</p>${s.thumbnail.prompt ? `<div class="lyrics">${esc(s.thumbnail.prompt)}</div><button class="small" data-act="copyThumb">Copier le prompt d'image</button>` : ''}</div></details>` : ''}
-      ${s.short?.title ? `<details><summary class="small">📱 Short tiré de la vidéo</summary><div class="small"><b>${esc(s.short.title)}</b><p>${esc(s.short.description || '')}</p></div></details>` : ''}
-    </div>
-    <div class="box" id="issuesBox">
-      <h3>🛡️ Règlement YouTube / Google</h3>
-      ${head.issues.length || s.complianceNotes?.length ? issuesHtml(head.issues, s.complianceNotes) : '<div class="small ok">✓ Aucun problème détecté.</div>'}
-    </div>
-    <div class="sticky-actions">
-      <button class="primary" data-act="insAll">✅ Tout insérer dans Studio</button>
-      <button data-act="regen" title="Nouveaux titres et description sans réécouter">🔁 Régénérer</button>
-    </div>`;
+  const head = scoreCard();
+  const important = head.issues.filter((i) => i.level !== 'info').length;
+  const count = (n) => `<span class="tp-faint tp-small">${n}</span>`;
+  box.innerHTML = [
+    head.html,
+    acc('titles', 'sparkles', esc(t('tab.titles')), titlesHtml(s), { open: true, extra: count(s.titles.length) }),
+    acc('description', 'file', esc(t('tab.description')), descHtml(), { open: true }),
+    acc('tags', 'tag', esc(t('tab.tags')), tagsHtml(s), { open: true, extra: '<span class="tp-counter" id="tagCount"></span>' }),
+    acc('timeline', 'clock', esc(t('result.timeline')), timelineHtml(s), { open: !!s.chapters?.length, extra: count(s.chapters?.length || 0) }),
+    acc('analysis', 'music', esc(t('result.analysis')), analysisHtml(pack.analysis, pack)),
+    pack.keywords || pack.competition ? acc('keywords', 'key', esc(t('result.keywords')), keywordsHtml(pack), { extra: `<span class="tp-small tp-faint tp-ellipsis tp-bidi">${esc(s.mainKeyword || '')}</span>` }) : '',
+    pack.trends ? acc('trends', 'trending', esc(t('result.trends')), trendsHtml(pack)) : '',
+    acc('extras', 'wand', esc(t('result.extras')), extrasHtml(s)),
+    acc('policy', 'shield', esc(t('tab.policy')), `<div id="issuesBox">${issuesHtml(head.issues, s.complianceNotes)}</div>`, { open: important > 0, extra: important ? `<span class="tp-chip tp-chip--hot">${important}</span>` : '' })
+  ].join('');
+  renderTags(false);
   updateCounters();
   $('#descEdit').addEventListener('input', (e) => { edit.description = e.target.value; updateCounters(); rescoreSoon(); persist(); });
   $('#tagAdd').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    e.target.value.split(',').forEach((t) => addTag(t));
+    e.target.value.split(',').forEach((x) => addTag(x));
     e.target.value = '';
   });
   $('#customTitle').addEventListener('input', (e) => {
-    const t = e.target.value.trim();
-    if (!t) { $('#customScore').innerHTML = ''; return; }
-    const r = S.scoreTitle(t, { keyword: pack.seo.mainKeyword, competitorTitles: (pack.competition?.videos || []).map((v) => v.title) });
-    $('#customScore').innerHTML = `${badge(r.score)} ${r.parts.map((p) => `${esc(p.label)} ${Math.round(p.pts)}/${p.max}`).join(' · ')}<br>${r.parts.filter((p) => p.pts < p.max).map((p) => '• ' + esc(p.tip)).join('<br>')} <button class="small" data-act="useCustom">Utiliser ce titre</button>`;
+    const v = e.target.value.trim();
+    if (!v) { $('#customScore').innerHTML = ''; return; }
+    const r = S.scoreTitle(v, { keyword: pack.seo.mainKeyword, competitorTitles: (pack.competition?.videos || []).map((x) => x.title) });
+    $('#customScore').innerHTML = `<div class="tp-row">${I.pill(r.score)}<span class="tp-muted">${r.parts.map((x) => `${esc(x.label)} ${Math.round(x.pts)}/${x.max}`).join(' · ')}</span></div>
+      ${r.parts.filter((x) => x.pts < x.max).map((x) => `<div class="tp-tiny tp-faint">• ${esc(x.tip)}</div>`).join('')}
+      <button class="tp-btn tp-btn--sm" data-act="useCustom" style="margin-top:6px">${ic('check', 13)} ${esc(t('result.useTitle'))}</button>`;
   });
 }
 
 function updateCounters() {
   const n = edit.description.length;
   const dc = $('#descCount');
-  if (dc) { dc.textContent = `${n}/5000`; dc.classList.toggle('over', n > 5000); }
+  if (dc) { dc.textContent = `${n}/5000`; dc.classList.toggle('tp-counter--over', n > 5000); }
   const tc = $('#tagCount');
-  if (tc) { const l = P.tagsLength(edit.tags); tc.textContent = `${edit.tags.length} tags · ${l}/500`; tc.classList.toggle('over', l > 500); }
+  if (tc) { const l = P.tagsLength(edit.tags); tc.textContent = `${edit.tags.length} · ${l}/500`; tc.classList.toggle('tp-counter--over', l > 500); }
 }
 
 const rescoreSoon = debounce(() => {
   if (!pack) return;
-  const head = scoreHead();
-  $('#scoreHead').innerHTML = head.html;
-  $('#issuesBox').innerHTML = `<h3>🛡️ Règlement YouTube / Google</h3>${head.issues.length || pack.seo.complianceNotes?.length ? issuesHtml(head.issues, pack.seo.complianceNotes) : '<div class="small ok">✓ Aucun problème détecté.</div>'}`;
+  const head = scoreCard();
+  const first = $('#result > .tp-card');
+  if (first) first.outerHTML = head.html;
+  const ib = $('#issuesBox');
+  if (ib) ib.innerHTML = issuesHtml(head.issues, pack.seo.complianceNotes);
 }, 350);
 
-function renderTags() {
-  $('#tagChips').innerHTML = edit.tags.map((t, i) => `<span class="chip">${esc(t)}<button data-act="rmTag" data-i="${i}" title="Retirer">×</button></span>`).join('');
+function renderTags(save = true) {
+  const box = $('#tagChips');
+  if (!box) return;
+  box.innerHTML = edit.tags.map((x, i) => `<span class="tp-chip tp-bidi">${esc(x)}<button class="tp-chip__x" data-act="rmTag" data-i="${i}" title="${esc(t('common.remove'))}">${ic('x', 12)}</button></span>`).join('');
   updateCounters();
-  rescoreSoon();
-  persist();
+  if (save) { rescoreSoon(); persist(); }
 }
 
-function addTag(t) {
-  const tag = P.cleanTag(t);
-  if (!tag || edit.tags.some((x) => F.norm(x) === F.norm(tag))) return;
-  if (P.tagsLength([...edit.tags, tag]) > 500) { flash('Limite de 500 caractères atteinte'); return; }
+function addTag(x) {
+  const tag = P.cleanTag(x);
+  if (!tag || edit.tags.some((y) => F.norm(y) === F.norm(tag))) return;
+  if (P.tagsLength([...edit.tags, tag]) > 500) { flash(t('result.tagLimit')); return; }
   edit.tags.push(tag);
   renderTags();
 }
 
 async function studioApply(fields) {
-  const t = await activeTab();
-  if (!t?.url?.startsWith('https://studio.youtube.com')) throw new Error('Ouvrez la vidéo dans YouTube Studio (page Détails ou fenêtre d\'import), puis réessayez.');
+  const tab = await activeTab();
+  if (!tab?.url?.startsWith('https://studio.youtube.com')) throw new Error(t('err.openStudioVideo'));
   let r;
-  try { r = await chrome.tabs.sendMessage(t.id, { type: 'studio:apply', fields }); } catch (e) { throw new Error('Studio ne répond pas : rechargez l\'onglet (F5).'); }
-  if (!r?.ok) throw new Error(r?.error || 'Insertion impossible.');
+  try { r = await chrome.tabs.sendMessage(tab.id, { type: 'studio:apply', fields }); } catch (e) { throw new Error(t('err.studioNoAnswer')); }
+  if (!r?.ok) throw new Error(r?.error || t('err.insertFailed'));
   return r.data;
 }
 
@@ -501,12 +463,12 @@ async function onResultClick(e) {
   try {
     if (act === 'pickTitle') {
       edit.title = s.titles[+b.dataset.i].text;
-      $$('#titles .tt').forEach((el) => { el.style.outline = el === b ? '2px solid var(--good)' : ''; });
+      $$('#titles .tp-item').forEach((el) => el.classList.toggle('tp-item--on', el === b));
       rescoreSoon();
       persist();
     } else if (act === 'copyTitle') { e.stopPropagation(); copy(s.titles[+b.dataset.i].text); }
-    else if (act === 'useCustom') { edit.title = P.sanitizeTitle($('#customTitle').value); rescoreSoon(); persist(); flash('Titre choisi ✓'); }
-    else if (act === 'copyAB') copy(s.abTitles.map((t) => t.text).join('\n'));
+    else if (act === 'useCustom') { edit.title = P.sanitizeTitle($('#customTitle').value); rescoreSoon(); persist(); flash(t('toast.titleChosen')); }
+    else if (act === 'copyAB') copy(s.abTitles.map((x) => x.text).join('\n'));
     else if (act === 'copyDesc') copy(edit.description);
     else if (act === 'copyTags') copy(edit.tags.join(', '));
     else if (act === 'copyHashtags') copy(s.hashtags.join(' '));
@@ -514,38 +476,43 @@ async function onResultClick(e) {
     else if (act === 'copyThumb') copy(s.thumbnail?.prompt || '');
     else if (act === 'copyLyrics') copy(pack.analysis?.music?.lyrics || '');
     else if (act === 'rmTag') { edit.tags.splice(+b.dataset.i, 1); renderTags(); }
-    else if (act === 'addTag') addTag(b.dataset.kw);
-    else if (act === 'insDesc') { await studioApply({ description: edit.description }); flash('Description insérée ✓'); }
-    else if (act === 'insTags') { await studioApply({ tags: edit.tags, replaceTags: true }); flash('Tags insérés ✓'); }
-    else if (act === 'insAll') { const d = await studioApply({ title: edit.title, description: edit.description, tags: edit.tags, replaceTags: true }); flash('Inséré : ' + d.join(', ') + ' ✓'); }
-    else if (act === 'regen') {
-      $('input[name=src][value=express]').checked = true;
-      srcTouched = true;
-      syncSrc();
-      runNow();
-    }
+    else if (act === 'addTag') { addTag(b.dataset.kw); flash(t('toast.tagAdded')); }
+    else if (act === 'insDesc') { await studioApply({ description: edit.description }); flash(t('toast.descInserted')); }
+    else if (act === 'insTags') { await studioApply({ tags: edit.tags, replaceTags: true }); flash(t('toast.tagsInserted')); }
   } catch (err) {
     showError(err.message);
     $('#runErr').scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 }
 
-/* =============== Mode abonnement (gemini.google.com) =============== */
+async function onActionBar(e) {
+  const b = e.target.closest('[data-act]');
+  if (!b || !pack) return;
+  try {
+    if (b.dataset.act === 'insAll') {
+      const d = await studioApply({ title: edit.title, description: edit.description, tags: edit.tags, replaceTags: true });
+      flash(t('toast.inserted', { fields: d.join(', ') }));
+    } else if (b.dataset.act === 'regen') {
+      $('input[name=src][value=express]').checked = true;
+      srcTouched = true;
+      syncSrc();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      runNow();
+    }
+  } catch (err) {
+    showError(err.message);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}
+
+/* =============== Copier-coller manuel (secours) =============== */
 async function copyManualPrompt() {
-  const p = profile();
   const studio = ctx?.page === 'studio' ? ctx : {};
-  const text = manualPrompt({
-    profile: p,
-    fileName: studio.fileName || $('#fileIn').files[0]?.name || '',
-    cleanTitle: F.cleanFileName(studio.fileName || $('#fileIn').files[0]?.name || ''),
-    keyword: $('#kwIn').value.trim(),
-    notes: $('#notesIn').value.trim(),
-    lyrics: $('#lyricsIn').value.trim(),
-    transcribeLyrics: $('#lyricsChk').checked,
-    titleCount: settings.titleCount,
-    currentTitle: studio.title || ''
-  });
-  copy(text, 'Prompt copié ✓ — collez-le dans Gemini avec votre vidéo jointe');
+  const name = studio.fileName || $('#fileIn').files[0]?.name || '';
+  copy(manualPrompt({
+    profile: profile(), fileName: name, cleanTitle: F.cleanFileName(name), keyword: $('#kwIn').value.trim(), notes: $('#notesIn').value.trim(),
+    lyrics: $('#lyricsIn').value.trim(), transcribeLyrics: $('#lyricsChk').checked, titleCount: settings.titleCount, currentTitle: studio.title || ''
+  }), t('manual.copied'));
 }
 
 async function applyManual() {
@@ -555,7 +522,7 @@ async function applyManual() {
     const p = await fromManual({ text: $('#manualIn').value, ctx: { fileName: studio.fileName || '', fileSize: studio.fileSize || 0, videoId: studio.videoId || '', channelId: studio.channelId || '', profileId: profile().id, packKey: studio.packKey || undefined } });
     $('#manualIn').value = '';
     showPack(p);
-    flash('Réponse de Gemini importée ✓');
+    flash(t('manual.imported'));
   } catch (e) { showError(e.message); }
 }
 
@@ -568,7 +535,7 @@ async function loadBasket() {
 }
 
 function renderBasket() {
-  $('#basketChips').innerHTML = basket.map((t, i) => `<span class="chip">${esc(t)}<button data-bi="${i}">×</button></span>`).join('') || '<span class="muted small">Cliquez « + » sur un mot-clé pour l\'ajouter.</span>';
+  $('#basketChips').innerHTML = basket.map((x, i) => `<span class="tp-chip tp-bidi">${esc(x)}<button class="tp-chip__x" data-bi="${i}">${ic('x', 12)}</button></span>`).join('') || `<span class="tp-small tp-faint">${esc(t('basket.empty'))}</span>`;
   $('#basketInfo').textContent = `${basket.length} · ${P.tagsLength(basket)}/500`;
   chrome.storage.local.set({ basket });
 }
@@ -579,18 +546,40 @@ function toBasket(kw) {
   renderBasket();
 }
 
+async function renderKp() {
+  const st = await kpStats();
+  $('#kpState').textContent = st.total ? t('kp.state', { n: st.total.toLocaleString(I18n.locale()) }) : '';
+}
+
+async function importKp(files) {
+  const msg = $('#kpMsg');
+  let total = 0, last = null;
+  try {
+    for (const f of files) {
+      last = await importKeywordPlanner(await f.arrayBuffer(), { country: $('#kwGl').value, lang: $('#kwHl').value });
+      total += last.imported;
+    }
+    msg.innerHTML = `<div class="tp-alert tp-alert--good">${ic('check', 14)}<span>${esc(t('kp.done', { n: total.toLocaleString(I18n.locale()), total: (last?.total || 0).toLocaleString(I18n.locale()) }))}</span></div>`;
+    renderKp();
+    if (kwData) kwSearch(kwData.seed);
+  } catch (e) {
+    msg.innerHTML = `<div class="tp-alert tp-alert--danger">${ic('alert', 14)}<span>${esc(e.message === 'no-header' ? t('kp.badFile') : e.message)}</span></div>`;
+  }
+}
+
 async function kwSearch(seedArg) {
   const seed = (seedArg ?? $('#kwSeed').value).trim();
   if (!seed) return;
   $('#kwSeed').value = seed;
   $('#kwDetail').innerHTML = '';
   $('#kwResults').innerHTML = '';
-  $('#kwProgress').innerHTML = `<div class="box small">Recherche des suggestions YouTube…${bar(5)}</div>`;
+  const prog = (p) => { $('#kwProgress').innerHTML = `<div class="tp-card"><div class="tp-card__body"><div class="tp-row"><span class="tp-spinner"></span><span class="tp-small">${esc(t('kw.searching'))} ${Math.round(p * 100)}%</span></div>${bar(p * 100)}</div></div>`; };
+  prog(0.05);
   try {
-    kwData = await research(seed, { hl: $('#kwHl').value, gl: $('#kwGl').value, deep: $('#kwDeep').checked, onProgress: (p) => { $('#kwProgress').innerHTML = `<div class="box small">Recherche des suggestions YouTube… ${Math.round(p * 100)} %${bar(p * 100)}</div>`; } });
+    kwData = await research(seed, { hl: $('#kwHl').value, gl: $('#kwGl').value, deep: $('#kwDeep').checked, onProgress: prog });
     renderKw();
   } catch (e) {
-    $('#kwResults').innerHTML = `<div class="alert small">⚠️ ${esc(e.message)}</div>`;
+    $('#kwResults').innerHTML = `<div class="tp-alert tp-alert--danger">${ic('alert', 14)}<span>${esc(e.message)}</span></div>`;
   } finally {
     $('#kwProgress').innerHTML = '';
   }
@@ -600,69 +589,76 @@ function renderKw(filter = '') {
   if (!kwData) return;
   const f = F.norm(filter);
   const items = kwData.items.filter((k) => !f || F.norm(k.kw).includes(f));
-  $('#kwResults').innerHTML = `<div class="box">
-    <div class="row"><b>${kwData.items.length} recherches réelles</b><span class="sp"></span><input id="kwFilter" placeholder="Filtrer…" value="${esc(filter)}" style="max-width:140px"></div>
-    <table><tr><th>Mot-clé</th><th style="width:80px">Popularité</th><th class="num"></th></tr>
-    ${items.slice(0, 80).map((k) => `<tr><td>${esc(k.kw)} ${k.direct ? '<span class="chip" title="Suggestion directe de la recherche">top</span>' : ''} ${k.words >= 4 ? '<span class="chip" title="Longue traîne : moins de concurrence">traîne</span>' : ''}</td>
-      <td>${bar(k.popularity)}<span class="tiny muted">${k.popularity}</span></td>
-      <td class="num"><button class="small" data-kwadd="${esc(k.kw)}" title="Ajouter au panier de tags">+</button> <button class="small" data-kwan="${esc(k.kw)}" title="Concurrence (clé YouTube)">📊</button></td></tr>`).join('')}</table></div>`;
+  const geo = $('#kwGl').value;
+  const hasVol = kwData.items.some((k) => k.vol);
+  $('#kwResults').innerHTML = `<div class="tp-card">
+    <div class="tp-card__head"><span class="tp-acc__icon">${ic('search', 15)}</span><b>${esc(t('kw.found', { n: kwData.items.length }))}</b><span class="tp-grow"></span><input id="kwFilter" class="tp-input" style="max-width:150px;min-height:30px" placeholder="${esc(t('kw.filter'))}" value="${esc(filter)}"></div>
+    <div class="tp-card__body">
+      ${!hasVol ? `<div class="tp-tiny tp-faint">${esc(t('kw.noVolumeHint'))}</div>` : ''}
+      <table class="tp-table"><thead><tr><th>${esc(t('kw.keyword'))}</th><th>${esc(t('kw.popularity'))}</th><th class="tp-num">${esc(t('kw.volume'))}</th><th></th></tr></thead><tbody>
+      ${items.slice(0, 90).map((k) => `<tr class="sp-kwrow"><td><span class="tp-bidi">${esc(k.kw)}</span> ${k.direct ? `<span class="tp-chip tp-chip--accent" style="height:20px;font-size:10.5px">${esc(t('kw.top'))}</span>` : ''}${k.words >= 4 ? ` <span class="tp-chip" style="height:20px;font-size:10.5px">${esc(t('kw.longTail'))}</span>` : ''}</td>
+        <td class="sp-kwbar">${bar(k.popularity)}<span class="tp-tiny tp-faint">${k.popularity}</span></td>
+        <td class="tp-num tp-small">${k.volLabel ? esc(k.volLabel) : '<span class="tp-faint">—</span>'}</td>
+        <td class="tp-num"><a class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" href="${esc(trendsUrl(k.kw, geo))}" target="_blank" rel="noopener" title="${esc(t('kw.trendsLink'))}">${ic('trending', 13)}</a><button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-kwadd="${esc(k.kw)}" title="${esc(t('basket.add'))}">${ic('plus', 13)}</button><button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-kwan="${esc(k.kw)}" title="${esc(t('kw.analyze'))}">${ic('chart', 13)}</button></td></tr>`).join('')}
+      </tbody></table>
+    </div></div>`;
   const inp = $('#kwFilter');
-  inp.addEventListener('input', debounce(() => { renderKw(inp.value); $('#kwFilter').focus(); const v = $('#kwFilter'); v.setSelectionRange(v.value.length, v.value.length); }, 250));
+  inp.addEventListener('input', debounce(() => { renderKw(inp.value); const v = $('#kwFilter'); v.focus(); v.setSelectionRange(v.value.length, v.value.length); }, 250));
 }
 
 async function kwAnalyze(kw) {
   const box = $('#kwDetail');
-  if (!settings.ytKey) { box.innerHTML = '<div class="alert small">Ajoutez une clé YouTube Data API v3 (gratuite) dans les réglages pour analyser la concurrence.</div>'; return; }
-  box.innerHTML = `<div class="box small">Analyse de « ${esc(kw)} » sur YouTube…${bar(40)}</div>`;
+  if (!settings.ytKey) { box.innerHTML = `<div class="tp-alert tp-alert--warn">${ic('key', 14)}<span>${esc(t('err.needYtKey'))} <a class="tp-link" data-open-options>${esc(t('common.openSettings'))}</a></span></div>`; return; }
+  box.innerHTML = `<div class="tp-card"><div class="tp-card__body"><div class="tp-row"><span class="tp-spinner"></span>${esc(t('kw.analyzing', { kw }))}</div></div></div>`;
   box.scrollIntoView({ block: 'start', behavior: 'smooth' });
   try {
     const c = await competition(kw, { regionCode: $('#kwGl').value, relevanceLanguage: $('#kwHl').value });
     const pat = c.patterns;
-    box.innerHTML = `<div class="box">
-      <div class="row"><h2>📊 « ${esc(kw)} »</h2><span class="sp"></span>${badge(c.overall, 'big')}</div>
-      <div class="row small"><span>Demande ${badge(c.demand)}</span><span>Facilité ${badge(100 - c.competition)}</span><span class="muted">vues médianes ${F.num(c.medianViews)} · abonnés médians ${F.num(c.medianSubs)} · titre exact ${Math.round(c.titleMatch * 100)} % · récentes ${Math.round(c.recent * 100)} %</span></div>
-      <div class="muted tiny">Score = 60 % demande (vues du top 15) + 40 % facilité (taille des chaînes, titres exacts, fraîcheur). Données : YouTube Data API.</div>
-      <details open><summary class="small">🧠 Ce qui marche dans les titres</summary>
-        ${pat.hooks.slice(0, 6).map((h) => `<div class="hbar"><span>${esc(h.k)}</span>${bar(h.pct)}<span>${h.pct} %</span></div>`).join('')}
-        <div class="small muted">Longueur moyenne ${pat.avgLength} car. · emoji ${pat.traits.emoji} % · MAJUSCULES ${pat.traits.caps} % · année ${pat.traits.year} % · [crochets] ${pat.traits.brackets} % · séparateur | ${pat.traits.pipe} %</div>
-        <div class="chips">${pat.words.map((w) => `<span class="chip click" data-kwseed="${esc(w.k)}" title="${w.c} titres">${esc(w.k)} ×${w.c}</span>`).join('')}</div>
-      </details>
-      ${c.tags.length ? `<details><summary class="small">🏷️ Tags des concurrents (cliquez pour les ajouter au panier)</summary><div class="chips">${c.tags.map((t) => `<span class="chip click" data-kwadd="${esc(t.tag)}">${esc(t.tag)} ×${t.n}</span>`).join('')}</div></details>` : ''}
-      <details open><summary class="small">🥊 Top 15 vidéos</summary>${c.videos.map((v) => `<div class="item vid small"><div class="grow"><a href="https://www.youtube.com/watch?v=${esc(v.id)}" target="_blank">${esc(v.title)}</a>
-        <div class="muted tiny">${esc(v.channelTitle)} · ${F.num(v.views)} vues · ${F.num(v.vph)} /h · ${F.num(v.subs)} abonnés · ${F.ago(v.publishedAt)}${v.outlier >= 2 ? ` · 🔥 ×${v.outlier.toFixed(1)}` : ''}</div></div></div>`).join('')}</details>
-      <button id="hooksBtn" class="primary">🧠 Formules d'accroche + titres originaux (Gemini)</button>
-      <div id="hooksOut"></div>
-    </div>`;
+    box.innerHTML = `<div class="tp-card">
+      <div class="tp-card__head">${I.ring(c.overall, 42, t('kw.score'))}<div class="tp-grow"><b class="tp-bidi">${esc(kw)}</b><div class="tp-tiny tp-faint">${esc(t('kw.scoreExplain'))}</div></div><a class="tp-btn tp-btn--sm" href="${esc(trendsUrl(kw, $('#kwGl').value))}" target="_blank" rel="noopener">${ic('trending', 13)} Trends</a></div>
+      <div class="tp-card__body">
+        <div class="tp-kpis"><div class="tp-kpi"><b>${c.demand}</b><span>${esc(t('insight.demand'))}</span></div><div class="tp-kpi"><b>${100 - c.competition}</b><span>${esc(t('kw.ease'))}</span></div><div class="tp-kpi"><b>${F.num(c.medianViews)}</b><span>${esc(t('kw.medianViews'))}</span></div><div class="tp-kpi"><b>${F.num(c.medianSubs)}</b><span>${esc(t('kw.medianSubs'))}</span></div></div>
+        <b class="tp-small">${esc(t('kw.whatWorks'))}</b>
+        ${pat.hooks.slice(0, 6).map((h) => `<div class="tp-meter"><span>${esc(t('hook.' + h.k))}</span>${bar(h.pct)}<span class="tp-num">${h.pct}%</span></div>`).join('')}
+        <div class="tp-tiny tp-faint">${esc(t('kw.traits', { len: pat.avgLength, emoji: pat.traits.emoji, caps: pat.traits.caps, year: pat.traits.year }))}</div>
+        <div class="tp-chips">${pat.words.map((w) => `<span class="tp-chip tp-chip--click tp-bidi" data-kwseed="${esc(w.k)}">${esc(w.k)} <span class="tp-faint">×${w.c}</span></span>`).join('')}</div>
+        ${c.tags.length ? `<details><summary class="tp-small tp-muted">${ic('tag', 13)} ${esc(t('kw.compTags'))}</summary><div class="tp-chips" style="margin-top:6px">${c.tags.map((x) => `<span class="tp-chip tp-chip--click tp-bidi" data-kwadd="${esc(x.tag)}">${esc(x.tag)} <span class="tp-faint">×${x.n}</span></span>`).join('')}</div></details>` : ''}
+        <details open><summary class="tp-small tp-muted">${ic('users', 13)} ${esc(t('kw.top15'))}</summary><div class="tp-list" style="margin-top:6px">${c.videos.map((v) => `<div class="tp-item sp-vid"><div class="tp-item__main"><a class="tp-bidi" href="https://www.youtube.com/watch?v=${esc(v.id)}" target="_blank" rel="noopener">${esc(v.title)}</a>
+          <div class="tp-item__meta">${esc(v.channelTitle)} · ${F.num(v.views)} ${esc(t('watch.views'))} · ${F.num(v.vph)}/h · ${F.num(v.subs)} ${esc(t('watch.subs'))} · ${esc(F.ago(v.publishedAt))}${v.outlier >= 2 ? ` · 🔥 ×${v.outlier.toFixed(1)}` : ''}</div></div></div>`).join('')}</div></details>
+        <button id="hooksBtn" class="tp-btn tp-btn--primary">${ic('target', 15)} ${esc(t('kw.hooksBtn'))}</button>
+        <div id="hooksOut"></div>
+      </div></div>`;
     $('#hooksBtn').onclick = () => runHooks(c.videos.map((v) => ({ title: v.title, views: v.views })), kw, $('#hooksOut'));
   } catch (e) {
-    box.innerHTML = `<div class="alert small">⚠️ ${esc(e.message)}</div>`;
+    box.innerHTML = `<div class="tp-alert tp-alert--danger">${ic('alert', 14)}<span>${esc(e.message)}</span></div>`;
   }
 }
 
 async function runHooks(titles, topic, out) {
-  if (settings.aiEngine === 'api' && !settings.geminiKey) { out.innerHTML = '<div class="alert small">Mode API sans clé : ajoutez la clé Gemini ou choisissez « Gemini Pro — mon abonnement ».</div>'; return; }
-  out.innerHTML = `<div class="small muted">Gemini analyse ${titles.length} titres…</div>${bar(50).replace('class="bar"', 'class="bar indet"')}`;
+  if (settings.aiEngine === 'api' && !settings.geminiKey) { out.innerHTML = `<div class="tp-alert tp-alert--warn">${ic('key', 14)}<span>${esc(t('err.apiNoKey'))}</span></div>`; return; }
+  out.innerHTML = `<div class="tp-row tp-small"><span class="tp-spinner"></span>${esc(t('hooks.running', { n: titles.length }))}</div>`;
   try {
     const r = await analyzeHooks(titles, { topic, profileId: profile().id });
-    out.innerHTML = `
-      ${r.formulas.map((f) => `<div class="item small"><div class="grow"><b>${esc(f.name)}</b> — <code>${esc(f.template)}</code>${f.example ? `<div class="muted">ex. ${esc(f.example)}</div>` : ''}<div class="tiny">${esc(f.why)}</div></div></div>`).join('')}
-      ${r.power_words?.length ? `<div class="small"><b>Mots puissants :</b> ${r.power_words.map((w) => `<span class="chip">${esc(w)}</span>`).join(' ')}</div>` : ''}
-      <div class="small muted">${esc(r.emoji_usage || '')} ${esc(r.ideal_length || '')}</div>
-      ${r.recommendations?.length ? `<ul class="small">${r.recommendations.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-      <h3>💡 Idées de titres originales</h3>
-      ${r.title_ideas.map((t) => `<div class="item small">${badge(t.score)}<div class="grow">${esc(t.text)}<div class="tiny muted">${esc(t.hook_type)}</div></div><button class="small ghost" data-copy="${esc(t.text)}">📋</button></div>`).join('')}`;
+    out.innerHTML = `<div class="tp-stack">
+      ${r.formulas.map((f) => `<div class="tp-item"><div class="tp-item__main"><b>${esc(f.name)}</b><code class="tp-small tp-bidi">${esc(f.template)}</code>${f.example ? `<div class="tp-item__meta tp-bidi">${esc(f.example)}</div>` : ''}<div class="tp-tiny tp-faint">${esc(f.why)}</div></div></div>`).join('')}
+      ${r.power_words?.length ? `<div class="tp-chips">${r.power_words.map((w) => `<span class="tp-chip tp-chip--accent tp-bidi">${esc(w)}</span>`).join('')}</div>` : ''}
+      ${r.recommendations?.length ? `<ul class="tp-small sp-ol">${r.recommendations.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      <b class="tp-small">${esc(t('hooks.ideas'))}</b>
+      <div class="tp-list">${r.title_ideas.map((x) => `<div class="tp-item">${I.pill(x.score)}<div class="tp-item__main"><div class="tp-item__title tp-bidi">${esc(x.text)}</div><div class="tp-item__meta">${esc(x.hook_type)}</div></div><button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-copy="${esc(x.text)}">${ic('copy', 13)}</button></div>`).join('')}</div>
+    </div>`;
   } catch (e) {
-    out.innerHTML = `<div class="alert small">⚠️ ${esc(e.message)}</div>`;
+    out.innerHTML = `<div class="tp-alert tp-alert--danger">${ic('alert', 14)}<span>${esc(e.message)}</span></div>`;
   }
 }
 
 /* =============== Concurrents =============== */
 async function renderCompetitors() {
   const list = await getCompetitors();
-  $('#compList').innerHTML = list.length ? list.map((c) => `<div class="item small"><img src="${esc(c.thumb || '')}" width="28" height="28" style="border-radius:50%" alt=""><div class="grow"><b>${esc(c.title)}</b><div class="tiny muted">${esc(c.handle || c.id)} · ${F.num(c.subs)} abonnés</div></div><button class="small ghost" data-rmcomp="${esc(c.id)}" title="Retirer">🗑️</button></div>`).join('')
-    : '<div class="small muted">Aucune chaîne suivie. Astuce : sur une page vidéo YouTube, bouton « ➕ Suivre la chaîne » de la carte TubePilot.</div>';
+  $('#compList').innerHTML = list.length ? list.map((c) => `<div class="tp-item"><img src="${esc(c.thumb || '')}" width="30" height="30" style="border-radius:50%;flex:none" alt=""><div class="tp-item__main"><b class="tp-bidi">${esc(c.title)}</b><div class="tp-item__meta">${esc(c.handle || c.id)} · ${F.num(c.subs)} ${esc(t('watch.subs'))}</div></div><button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-rmcomp="${esc(c.id)}" title="${esc(t('common.remove'))}">${ic('trash', 13)}</button></div>`).join('')
+    : `<div class="tp-empty">${ic('users', 22)}<span class="tp-small">${esc(t('comp.empty'))}</span></div>`;
   const cache = (await chrome.storage.local.get('compCache')).compCache;
   if (cache?.videos?.length && !$('#compVideos').dataset.filled) renderCompVideos(cache.videos, cache.ts);
+  else if (!cache?.videos?.length) $('#compVideos').innerHTML = `<div class="tp-small tp-faint">${esc(t('comp.refreshHint'))}</div>`;
 }
 
 async function addCompetitor() {
@@ -670,20 +666,20 @@ async function addCompetitor() {
   if (!v) return;
   try {
     const c = await YT.resolveChannel(v);
-    if (!c) throw new Error('Chaîne introuvable.');
+    if (!c) throw new Error(t('comp.notFound'));
     const list = await getCompetitors();
     if (!list.some((x) => x.id === c.id)) list.push({ id: c.id, title: c.title, handle: c.handle, thumb: c.thumb, subs: c.subs, uploads: c.uploads, addedAt: Date.now() });
     await setCompetitors(list);
     $('#compIn').value = '';
     renderCompetitors();
-  } catch (e) { flash('⚠️ ' + e.message); }
+  } catch (e) { flash(e.message); }
 }
 
 async function refreshCompetitors() {
   const list = await getCompetitors();
   if (!list.length) return;
-  if (!settings.ytKey) { $('#compVideos').innerHTML = '<div class="alert small">Clé YouTube Data API requise (Réglages).</div>'; return; }
-  $('#compVideos').innerHTML = `<div class="small muted">Lecture des dernières vidéos de ${list.length} chaîne(s)…</div>`;
+  if (!settings.ytKey) { $('#compVideos').innerHTML = `<div class="tp-alert tp-alert--warn">${ic('key', 14)}<span>${esc(t('err.needYtKey'))}</span></div>`; return; }
+  $('#compVideos').innerHTML = `<div class="tp-row tp-small"><span class="tp-spinner"></span>${esc(t('comp.loading', { n: list.length }))}</div>`;
   const all = [];
   await F.pool(list.slice(0, 25), 4, async (c) => {
     const vids = await YT.recentUploads(c, 15);
@@ -697,71 +693,67 @@ async function refreshCompetitors() {
 }
 
 function renderCompVideos(videos, ts) {
-  const top = videos.slice(0, 30);
   const box = $('#compVideos');
   box.dataset.filled = '1';
-  box.innerHTML = `<div class="tiny muted">Mis à jour ${esc(F.ago(ts))} · ×N = vues comparées à la médiane de la chaîne</div>` + top.map((v) => `<div class="item vid small"><span class="sc ${v.outlier >= 3 ? 'good' : v.outlier >= 1.5 ? 'mid' : 'bad'}" title="Vues / médiane de la chaîne">×${v.outlier >= 10 ? Math.round(v.outlier) : v.outlier.toFixed(1)}</span>
-    <div class="grow"><a href="https://www.youtube.com/watch?v=${esc(v.id)}" target="_blank">${esc(v.title)}</a><div class="tiny muted">${esc(v.channelTitle)} · ${F.num(v.views)} vues · ${F.num(v.vph)} /h · ${F.ago(v.publishedAt)}</div>
-    <div class="chips">${S.detectHooks(v.title).map((h) => `<span class="chip">${esc(h)}</span>`).join('')}</div></div></div>`).join('');
-  // enseignements : accroches, jours / heures de publication, tags
+  box.innerHTML = `<div class="tp-tiny tp-faint">${esc(t('comp.updated', { ago: F.ago(ts) }))}</div>` + videos.slice(0, 30).map((v) => `<div class="tp-item sp-vid"><span class="tp-pill tp-pill--${v.outlier >= 3 ? 'good' : v.outlier >= 1.5 ? 'mid' : 'bad'}" title="${esc(t('comp.outlierHint'))}">×${v.outlier >= 10 ? Math.round(v.outlier) : v.outlier.toFixed(1)}</span>
+    <div class="tp-item__main"><a class="tp-bidi" href="https://www.youtube.com/watch?v=${esc(v.id)}" target="_blank" rel="noopener">${esc(v.title)}</a><div class="tp-item__meta">${esc(v.channelTitle)} · ${F.num(v.views)} ${esc(t('watch.views'))} · ${F.num(v.vph)}/h · ${esc(F.ago(v.publishedAt))}</div>
+    <div class="tp-chips">${S.detectHooks(v.title).map((h) => `<span class="tp-chip" style="height:20px;font-size:11px">${esc(t('hook.' + h))}</span>`).join('')}</div></div></div>`).join('');
   const winners = videos.filter((v) => v.outlier >= 1.5).slice(0, 40);
   const base = winners.length >= 5 ? winners : videos.slice(0, 20);
   const pat = S.titlePatterns(base.map((v) => v.title));
   const days = Array(7).fill(0), hours = Array(24).fill(0);
   base.forEach((v) => { const d = new Date(v.publishedAt); days[d.getDay()]++; hours[d.getHours()]++; });
-  const dayNames = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
-  const maxD = Math.max(1, ...days), maxH = Math.max(1, ...hours);
+  const maxD = Math.max(1, ...days);
+  const dayName = (i) => new Date(2024, 0, 7 + i).toLocaleDateString(I18n.locale(), { weekday: 'short' });
   const bestHours = hours.map((n, h) => ({ h, n })).filter((x) => x.n).sort((a, b) => b.n - a.n).slice(0, 3);
   const tagFreq = {};
-  base.forEach((v) => (v.tags || []).forEach((t) => { const k = t.trim(); tagFreq[k] = (tagFreq[k] || 0) + 1; }));
+  base.forEach((v) => (v.tags || []).forEach((x) => { const k = x.trim(); tagFreq[k] = (tagFreq[k] || 0) + 1; }));
   const tags = Object.entries(tagFreq).sort((a, b) => b[1] - a[1]).slice(0, 30);
-  $('#compInsights').innerHTML = `<div class="box">
-    <h2>🧠 Ce qui marche chez vos concurrents</h2>
-    <div class="small muted">Basé sur ${base.length} vidéos ${winners.length >= 5 ? 'qui surperforment (×1,5 et plus)' : 'récentes'}.</div>
-    ${pat.hooks.slice(0, 6).map((h) => `<div class="hbar"><span>${esc(h.k)}</span>${bar(h.pct)}<span>${h.pct} %</span></div>`).join('')}
-    <div class="small muted">Longueur moyenne ${pat.avgLength} car. · emoji ${pat.traits.emoji} % · année ${pat.traits.year} % · MAJUSCULES ${pat.traits.caps} %</div>
-    <div class="chips">${pat.words.map((w) => `<span class="chip click" data-kwseed="${esc(w.k)}">${esc(w.k)} ×${w.c}</span>`).join('')}</div>
-    <h3>📅 Jours et heures de publication (heure locale)</h3>
-    ${days.map((n, i) => `<div class="hbar"><span>${dayNames[i]}</span>${bar((n / maxD) * 100)}<span>${n}</span></div>`).join('')}
-    <div class="small">⏰ Heures les plus fréquentes : ${bestHours.map((x) => `<b>${x.h} h</b>`).join(', ') || '—'} <span class="muted">(${Math.round((Math.max(...hours) / maxH) * 100)} %)</span></div>
-    ${tags.length ? `<details><summary class="small">🏷️ Tags les plus utilisés</summary><div class="chips">${tags.map(([t, n]) => `<span class="chip click" data-kwadd="${esc(t)}">${esc(t)} ×${n}</span>`).join('')}</div></details>` : ''}
-    <button id="compHooks" class="primary">🧠 Formules d'accroche + titres originaux (Gemini)</button>
+  $('#compInsights').innerHTML = `<div class="tp-card"><div class="tp-card__head"><span class="tp-acc__icon">${ic('target', 15)}</span><b>${esc(t('comp.insights'))}</b></div><div class="tp-card__body">
+    <div class="tp-tiny tp-faint">${esc(winners.length >= 5 ? t('comp.basedWinners', { n: base.length }) : t('comp.basedRecent', { n: base.length }))}</div>
+    ${pat.hooks.slice(0, 6).map((h) => `<div class="tp-meter"><span>${esc(t('hook.' + h.k))}</span>${bar(h.pct)}<span class="tp-num">${h.pct}%</span></div>`).join('')}
+    <div class="tp-tiny tp-faint">${esc(t('kw.traits', { len: pat.avgLength, emoji: pat.traits.emoji, caps: pat.traits.caps, year: pat.traits.year }))}</div>
+    <div class="tp-chips">${pat.words.map((w) => `<span class="tp-chip tp-chip--click tp-bidi" data-kwseed="${esc(w.k)}">${esc(w.k)} <span class="tp-faint">×${w.c}</span></span>`).join('')}</div>
+    <b class="tp-small">${esc(t('comp.when'))}</b>
+    ${days.map((n, i) => `<div class="tp-meter"><span>${esc(dayName(i))}</span>${bar((n / maxD) * 100)}<span class="tp-num">${n}</span></div>`).join('')}
+    <div class="tp-small">${esc(t('comp.bestHours'))} ${bestHours.map((x) => `<b>${x.h}:00</b>`).join(', ') || '—'}</div>
+    ${tags.length ? `<details><summary class="tp-small tp-muted">${ic('tag', 13)} ${esc(t('comp.topTags'))}</summary><div class="tp-chips" style="margin-top:6px">${tags.map(([x, n]) => `<span class="tp-chip tp-chip--click tp-bidi" data-kwadd="${esc(x)}">${esc(x)} <span class="tp-faint">×${n}</span></span>`).join('')}</div></details>` : ''}
+    <button id="compHooks" class="tp-btn tp-btn--primary">${ic('target', 15)} ${esc(t('kw.hooksBtn'))}</button>
     <div id="compHooksOut"></div>
-  </div>`;
+  </div></div>`;
   $('#compHooks').onclick = () => runHooks(base.map((v) => ({ title: v.title, views: v.views })), '', $('#compHooksOut'));
 }
 
 /* =============== Tendances =============== */
 async function loadTrends() {
   const out = $('#trResults');
-  if (!settings.ytKey) { out.innerHTML = '<div class="alert small">Clé YouTube Data API requise (Réglages) — 1 unité par chargement.</div>'; return; }
-  out.innerHTML = `<div class="box small muted">Chargement…</div>`;
+  if (!settings.ytKey) { out.innerHTML = `<div class="tp-alert tp-alert--warn">${ic('key', 14)}<span>${esc(t('err.needYtKey'))} <a class="tp-link" data-open-options>${esc(t('common.openSettings'))}</a></span></div>`; return; }
+  out.innerHTML = `<div class="tp-row tp-small"><span class="tp-spinner"></span>${esc(t('common.loading'))}</div>`;
   try {
     const vids = (await YT.trending({ regionCode: $('#trGl').value, videoCategoryId: $('#trCat').value })).sort((a, b) => b.vph - a.vph);
     const pat = S.titlePatterns(vids.map((v) => v.title));
     const tagFreq = {};
-    vids.forEach((v) => F.uniq(v.tags || []).forEach((t) => { tagFreq[t] = (tagFreq[t] || 0) + 1; }));
+    vids.forEach((v) => F.uniq(v.tags || []).forEach((x) => { tagFreq[x] = (tagFreq[x] || 0) + 1; }));
     const tags = Object.entries(tagFreq).filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).slice(0, 30);
     renderFooter();
-    out.innerHTML = `<div class="box">
-      <h2>💡 Sujets qui reviennent</h2>
-      <div class="chips">${pat.words.map((w) => `<span class="chip click" data-kwseed="${esc(w.k)}" title="Analyser ce mot-clé">${esc(w.k)} ×${w.c}</span>`).join('') || '<span class="muted small">—</span>'}</div>
-      ${tags.length ? `<div class="chips">${tags.map(([t, n]) => `<span class="chip click" data-kwseed="${esc(t)}">#${esc(t)} ×${n}</span>`).join('')}</div>` : ''}
-      ${pat.hooks.slice(0, 5).map((h) => `<div class="hbar"><span>${esc(h.k)}</span>${bar(h.pct)}<span>${h.pct} %</span></div>`).join('')}
-    </div>
-    <div class="box">${vids.map((v, i) => `<div class="item vid small"><b class="muted">${i + 1}</b><div class="grow"><a href="https://www.youtube.com/watch?v=${esc(v.id)}" target="_blank">${esc(v.title)}</a>
-      <div class="tiny muted">${esc(v.channelTitle)} · ${F.num(v.views)} vues · <b>${F.num(v.vph)} /h</b> · ${F.ago(v.publishedAt)} · ${F.dur(v.duration)}</div></div></div>`).join('')}</div>`;
+    out.innerHTML = `<div class="tp-card"><div class="tp-card__head"><span class="tp-acc__icon">${ic('sparkles', 15)}</span><b>${esc(t('trends.topics'))}</b></div><div class="tp-card__body">
+      <div class="tp-chips">${pat.words.map((w) => `<span class="tp-chip tp-chip--click tp-bidi" data-kwseed="${esc(w.k)}">${esc(w.k)} <span class="tp-faint">×${w.c}</span></span>`).join('') || '—'}</div>
+      ${tags.length ? `<div class="tp-chips">${tags.map(([x, n]) => `<span class="tp-chip tp-chip--accent tp-chip--click tp-bidi" data-kwseed="${esc(x)}">${esc(x)} <span class="tp-faint">×${n}</span></span>`).join('')}</div>` : ''}
+      ${pat.hooks.slice(0, 5).map((h) => `<div class="tp-meter"><span>${esc(t('hook.' + h.k))}</span>${bar(h.pct)}<span class="tp-num">${h.pct}%</span></div>`).join('')}
+    </div></div>
+    <div class="tp-list">${vids.map((v, i) => `<div class="tp-item sp-vid"><b class="tp-faint" style="min-width:18px">${i + 1}</b><img src="${esc(v.thumb)}" width="72" style="border-radius:6px;aspect-ratio:16/9;object-fit:cover;flex:none" alt=""><div class="tp-item__main"><a class="tp-bidi" href="https://www.youtube.com/watch?v=${esc(v.id)}" target="_blank" rel="noopener">${esc(v.title)}</a>
+      <div class="tp-item__meta">${esc(v.channelTitle)} · ${F.num(v.views)} · <b>${F.num(v.vph)}/h</b> · ${esc(F.ago(v.publishedAt))}</div></div></div>`).join('')}</div>`;
   } catch (e) {
-    out.innerHTML = `<div class="alert small">⚠️ ${esc(e.message)}</div>`;
+    out.innerHTML = `<div class="tp-alert tp-alert--danger">${ic('alert', 14)}<span>${esc(e.message)}</span></div>`;
   }
 }
 
 /* =============== Historique =============== */
 async function renderHistory() {
   const list = await listPacks();
-  $('#histList').innerHTML = list.length ? `<div class="box">${list.map((x) => `<div class="item small">${badge(x.score || 0)}<div class="grow"><b class="clamp">${esc(x.title)}</b><div class="tiny muted">${esc(x.fileName || x.videoId || x.key)} · ${F.ago(x.createdAt)}</div></div>
-      <button class="small" data-open="${esc(x.key)}">Ouvrir</button><button class="small ghost" data-del="${esc(x.key)}" title="Supprimer">🗑️</button></div>`).join('')}</div>`
-    : '<div class="box small muted">Aucune fiche pour l\'instant.</div>';
+  $('#histList').innerHTML = list.length ? `<div class="tp-list">${list.map((x) => `<div class="tp-item">${I.pill(x.score || 0)}<div class="tp-item__main"><b class="tp-ellipsis tp-bidi">${esc(x.title)}</b><div class="tp-item__meta">${esc(x.fileName || x.videoId || x.key)} · ${esc(F.ago(x.createdAt))}</div></div>
+      <button class="tp-btn tp-btn--sm" data-open="${esc(x.key)}">${esc(t('common.open'))}</button><button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-del="${esc(x.key)}" title="${esc(t('common.remove'))}">${ic('trash', 13)}</button></div>`).join('')}</div>`
+    : `<div class="tp-card"><div class="tp-empty">${ic('history', 24)}<span>${esc(t('history.empty'))}</span></div></div>`;
 }
 
 /* =============== Intentions venant des pages YouTube =============== */
@@ -785,14 +777,14 @@ async function handleIntent(intent) {
 
 /* =============== Événements =============== */
 function bind() {
-  $$('.tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+  $$('.sp-navbtn').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
   $('#openOptions').addEventListener('click', () => chrome.runtime.openOptionsPage());
   document.addEventListener('click', (e) => {
     if (e.target.closest('[data-open-options]')) chrome.runtime.openOptionsPage();
     const seed = e.target.closest('[data-kwseed]');
     if (seed) { showTab('keywords'); kwSearch(seed.dataset.kwseed); }
     const add = e.target.closest('[data-kwadd]');
-    if (add) { toBasket(add.dataset.kwadd); flash('Ajouté au panier ✓'); }
+    if (add) { toBasket(add.dataset.kwadd); flash(t('basket.added')); }
     const an = e.target.closest('[data-kwan]');
     if (an) kwAnalyze(an.dataset.kwan);
     const cp = e.target.closest('[data-copy]');
@@ -809,35 +801,24 @@ function bind() {
   $$('input[name=src]').forEach((r) => r.addEventListener('change', () => { srcTouched = true; syncSrc(); }));
   $('#runBtn').addEventListener('click', runNow);
   $('#result').addEventListener('click', onResultClick);
+  $('#actionBar').addEventListener('click', onActionBar);
   $('#copyPrompt').addEventListener('click', copyManualPrompt);
-  $('#openGemini').addEventListener('click', () => chrome.tabs.create({ url: 'https://gemini.google.com/app' }));
+  $('#openGemini').addEventListener('click', () => chrome.tabs.create({ url: settings.geminiUrl || 'https://gemini.google.com/app' }));
   $('#manualApply').addEventListener('click', applyManual);
   $('#profile').addEventListener('change', async () => { settings = await setSettings({ activeProfile: $('#profile').value }); });
   $('#kwGo').addEventListener('click', () => kwSearch());
   $('#kwSeed').addEventListener('keydown', (e) => { if (e.key === 'Enter') kwSearch(); });
+  $('#kpFile').addEventListener('change', (e) => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) importKp(fs); });
+  $('#kpClear').addEventListener('click', async () => { await clearKeywordPlanner(); $('#kpMsg').innerHTML = ''; renderKp(); });
   $('#basketCopy').addEventListener('click', () => copy(basket.join(', ')));
   $('#basketClear').addEventListener('click', () => { basket = []; renderBasket(); });
   $('#basketInsert').addEventListener('click', async () => {
-    try { await studioApply({ tags: basket, replaceTags: false }); flash('Tags ajoutés dans Studio ✓'); } catch (e) { flash('⚠️ ' + e.message); }
+    try { await studioApply({ tags: basket, replaceTags: false }); flash(t('toast.tagsInserted')); } catch (e) { flash(e.message); }
   });
   $('#compAdd').addEventListener('click', addCompetitor);
   $('#compIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') addCompetitor(); });
-  $('#compRefresh').addEventListener('click', () => refreshCompetitors().catch((e) => { $('#compVideos').innerHTML = `<div class="alert small">⚠️ ${esc(e.message)}</div>`; }));
+  $('#compRefresh').addEventListener('click', () => refreshCompetitors().catch((e) => { $('#compVideos').innerHTML = `<div class="tp-alert tp-alert--danger">${ic('alert', 14)}<span>${esc(e.message)}</span></div>`; }));
   $('#trGo').addEventListener('click', loadTrends);
-  $('#gSave').addEventListener('click', saveGeminiKey);
-  $$('input[name=engine]').forEach((r) => r.addEventListener('change', async () => { settings = await setSettings({ aiEngine: r.value }); renderKeys(); renderFooter(); }));
-  $('#gUrl').addEventListener('change', async (e) => {
-    const v = e.target.value.trim();
-    if (v && !/^https:\/\/gemini\.google\.com\//.test(v)) { flash('Adresse invalide : elle doit commencer par https://gemini.google.com/'); return; }
-    settings = await setSettings({ geminiUrl: v || 'https://gemini.google.com/app' });
-  });
-  $('#gSteps').addEventListener('change', async (e) => { settings = await setSettings({ geminiSteps: +e.target.value }); });
-  $('#gWin').addEventListener('change', async (e) => { settings = await setSettings({ geminiWindow: e.target.value }); });
-  $('#gClose').addEventListener('change', async (e) => { settings = await setSettings({ geminiClose: e.target.checked }); });
-  $('#ySave').addEventListener('click', saveYtKey);
-  $('#mMain').addEventListener('change', async (e) => { settings = await setSettings({ modelMain: e.target.value }); renderFooter(); });
-  $('#mFast').addEventListener('change', async (e) => { settings = await setSettings({ modelFast: e.target.value }); });
-  $('#webChk').addEventListener('change', async (e) => { settings = await setSettings({ webTrends: e.target.checked }); });
 
   const refreshSoon = debounce(refreshContext, 300);
   chrome.tabs.onActivated.addListener(refreshSoon);
@@ -847,7 +828,7 @@ function bind() {
   chrome.storage.onChanged.addListener(async (ch, area) => {
     if (area === 'session' && ch.panelIntent?.newValue) handleIntent(ch.panelIntent.newValue);
     if (area !== 'local') return;
-    if (ch.settings) loadSettings();
+    if (ch.settings) { await loadSettings(); if (pack) renderResult(); }
     const want = studioJob?.key || pack?.key;
     if (want && ch['pack:' + want]?.newValue && !job) {
       const p = ch['pack:' + want].newValue;
@@ -867,17 +848,19 @@ function bind() {
       studioJob = null;
       showProgress(null);
       $('#runBtn').disabled = false;
-      showError(m.progress.detail || 'Erreur pendant l\'analyse.');
+      showError(m.progress.detail || t('common.unknownError'));
     } else if (m.progress?.step !== 'done') showProgress(m.progress);
     return false;
   });
 }
 
 (async function init() {
+  $('#logo').innerHTML = I.logo(26);
+  $('#openOptions').innerHTML = ic('sliders', 16);
+  icons();
   bind();
   await loadSettings();
   await loadBasket();
-  syncSrc();
   await refreshContext();
   if (!pack) {
     const last = (await listPacks())[0];

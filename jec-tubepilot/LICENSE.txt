@@ -1,0 +1,21 @@
+TubePilot — proprietary software license
+Copyright (c) 2026 the TubePilot author. All rights reserved.
+
+1. Marketplace purchases (e.g. Envato / CodeCanyon)
+   If you obtained this source code through a marketplace, your rights are those of the license you
+   purchased there (for Envato: the Regular or Extended License, https://codecanyon.net/licenses/standard),
+   which prevail over this file.
+
+2. Chrome Web Store users
+   You may install and use the extension for your own channels. You may not copy, modify, redistribute,
+   resell or publish the extension or its code.
+
+3. Third-party services
+   The software uses Google services (Gemini, YouTube Data API, YouTube search suggestions) under the user's
+   own accounts and keys. Their use is subject to Google's terms. YouTube, YouTube Studio, Gemini and
+   Google Ads are trademarks of Google LLC; this product is not affiliated with or endorsed by Google.
+
+4. No warranty
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. IN NO EVENT SHALL THE AUTHOR BE LIABLE
+   FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE, INCLUDING ANY ACTION
+   TAKEN BY YOUTUBE OR GOOGLE ON A CHANNEL OR ACCOUNT.

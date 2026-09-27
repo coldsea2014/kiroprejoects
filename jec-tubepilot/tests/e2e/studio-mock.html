@@ -7,13 +7,16 @@
   #textbox { min-height: 24px; border: 1px solid #555; padding: 6px; white-space: pre-wrap; }
   ytcp-chip { display: inline-block; background: #444; margin: 2px; padding: 2px 6px; border-radius: 8px; }
   .hidden { display: none; }
+  ytcp-video-metadata-editor { display: flex; flex-direction: column; gap: 16px; }
+  .fixed-box { display: block; height: 90px; position: relative; border: 1px solid #666; border-radius: 4px; padding: 8px; box-sizing: border-box; }
+  ytcp-video-title, ytcp-video-description { display: block; }
 </style></head>
 <body>
   <a href="/channel/UCabcdefghijklmnopqrstuv/videos">Chaîne</a>
   <input type="file" id="picker" name="Filedata">
   <ytcp-uploads-dialog class="hidden">
     <ytcp-video-metadata-editor>
-      <ytcp-video-title><ytcp-social-suggestions-textbox id="title-textarea"><div id="textbox" contenteditable="true"></div></ytcp-social-suggestions-textbox></ytcp-video-title>
+      <ytcp-video-title><ytcp-form-input-container class="fixed-box"><div class="outline"><ytcp-social-suggestions-textbox id="title-textarea"><div id="textbox" contenteditable="true"></div></ytcp-social-suggestions-textbox></div></ytcp-form-input-container></ytcp-video-title>
       <ytcp-video-description><ytcp-social-suggestions-textbox id="description-textarea"><div id="textbox" contenteditable="true"></div></ytcp-social-suggestions-textbox></ytcp-video-description>
       <button id="toggle-button">Afficher plus</button>
       <div id="more" class="hidden">

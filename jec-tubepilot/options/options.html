@@ -46,37 +46,22 @@
       <section id="engine" class="tp-card">
         <div class="tp-card__head"><span class="tp-acc__icon" data-icon="sparkles"></span><h2 class="tp-h2" data-i18n="op.engine.title"></h2></div>
         <div class="tp-card__body">
-          <div class="op-choices">
-            <label class="op-choice"><input type="radio" name="aiEngine" value="web"><div><b data-i18n="op.engine.web"></b><span class="tp-chip tp-chip--good" data-i18n="op.recommended"></span><p class="tp-small tp-muted" data-i18n="op.engine.webDesc"></p></div></label>
-            <label class="op-choice"><input type="radio" name="aiEngine" value="api"><div><b data-i18n="op.engine.api"></b><p class="tp-small tp-muted" data-i18n="op.engine.apiDesc"></p></div></label>
-          </div>
-          <div id="webOpts" class="tp-stack">
-            <div class="op-grid2">
-              <label class="tp-field"><span class="tp-label" data-i18n="op.engine.url"></span><input id="geminiUrl" class="tp-input" placeholder="https://gemini.google.com/app"><span class="tp-help" data-i18n="op.engine.urlHelp"></span></label>
-              <label class="tp-field"><span class="tp-label" data-i18n="op.engine.steps"></span>
-                <select id="geminiSteps" class="tp-select"><option value="2" data-i18n="op.engine.steps2"></option><option value="1" data-i18n="op.engine.steps1"></option></select></label>
-              <label class="tp-field"><span class="tp-label" data-i18n="op.engine.window"></span>
-                <select id="geminiWindow" class="tp-select"><option value="popup" data-i18n="op.engine.popup"></option><option value="tab" data-i18n="op.engine.tab"></option></select></label>
-            </div>
-            <label class="tp-switch"><input type="checkbox" id="geminiClose"><span class="tp-switch__text"><span data-i18n="op.engine.close"></span></span></label>
-            <div class="tp-alert tp-alert--info"><span data-icon="info"></span><span data-i18n="op.engine.webNote"></span></div>
-          </div>
-          <div id="apiOpts" class="tp-stack">
-            <label class="tp-field"><span class="tp-label" data-i18n="op.engine.key"></span>
-              <div class="tp-inputgroup"><input id="geminiKey" class="tp-input" type="password" placeholder="AIza…" autocomplete="off"><button id="testGemini" class="tp-btn"><span data-i18n="op.test"></span></button></div>
-              <span class="tp-help" data-i18n-html="op.engine.keyHelp"></span></label>
-            <div id="geminiStatus" class="tp-small"></div>
-            <div class="op-grid2">
-              <label class="tp-field"><span class="tp-label" data-i18n="op.engine.mainModel"></span><select id="modelMain" class="tp-select"></select></label>
-              <label class="tp-field"><span class="tp-label" data-i18n="op.engine.fastModel"></span><select id="modelFast" class="tp-select"></select></label>
-              <label class="tp-field"><span class="tp-label" data-i18n="run.media"></span>
-                <select id="mediaMode" class="tp-select"><option value="auto" data-i18n="run.mediaAuto"></option><option value="audio" data-i18n="run.mediaAudio"></option><option value="video" data-i18n="run.mediaVideo"></option></select></label>
-            </div>
-            <label class="tp-switch"><input type="checkbox" id="deleteFiles"><span class="tp-switch__text"><span data-i18n="op.engine.deleteFiles"></span></span></label>
+          <div class="op-engine">
+            <div class="tp-acc__icon" data-icon="sparkles"></div>
+            <div><b data-i18n="op.engine.web"></b> <span class="tp-chip tp-chip--good" data-i18n="op.engine.noKey"></span><p class="tp-small tp-muted" data-i18n="op.engine.webDesc"></p></div>
           </div>
           <div class="op-grid2">
-            <label class="tp-field"><span class="tp-label" data-i18n="op.titleCount"></span><select id="titleCount" class="tp-select"><option>6</option><option>8</option><option>10</option><option>12</option></select></label>
+            <label class="tp-field"><span class="tp-label" data-i18n="op.engine.model"></span>
+              <select id="geminiModel" class="tp-select"><option value="pro" data-i18n="op.engine.modelPro"></option><option value="keep" data-i18n="op.engine.modelKeep"></option></select><span class="tp-help" data-i18n="op.engine.modelHelp"></span></label>
+            <label class="tp-field"><span class="tp-label" data-i18n="op.engine.steps"></span>
+              <select id="geminiSteps" class="tp-select"><option value="2" data-i18n="op.engine.steps2"></option><option value="1" data-i18n="op.engine.steps1"></option></select></label>
+            <label class="tp-field"><span class="tp-label" data-i18n="op.engine.window"></span>
+              <select id="geminiWindow" class="tp-select"><option value="popup" data-i18n="op.engine.popup"></option><option value="tab" data-i18n="op.engine.tab"></option></select></label>
+            <label class="tp-field"><span class="tp-label" data-i18n="op.engine.url"></span><input id="geminiUrl" class="tp-input" placeholder="https://gemini.google.com/app"><span class="tp-help" data-i18n="op.engine.urlHelp"></span></label>
           </div>
+          <label class="tp-switch"><input type="checkbox" id="geminiClose"><span class="tp-switch__text"><span data-i18n="op.engine.close"></span></span></label>
+          <div class="tp-alert tp-alert--info"><span data-icon="info"></span><span data-i18n="op.engine.webNote"></span></div>
+          <label class="tp-field"><span class="tp-label" data-i18n="op.titleCount"></span><select id="titleCount" class="tp-select"><option>6</option><option>8</option><option>10</option><option>12</option></select></label>
           <label class="tp-switch"><input type="checkbox" id="transcribeLyrics"><span class="tp-switch__text"><span data-i18n="run.transcribe"></span></span></label>
         </div>
       </section>
@@ -89,7 +74,6 @@
           <div class="tp-inputgroup"><input id="ytKey" class="tp-input" type="password" placeholder="AIza…" autocomplete="off"><button id="testYt" class="tp-btn"><span data-i18n="op.test"></span></button></div>
           <div id="ytStatus" class="tp-small"></div>
           <label class="tp-switch"><input type="checkbox" id="competitorLookup"><span class="tp-switch__text"><span data-i18n="run.compare"></span><span class="tp-help" data-i18n="run.compareHelp"></span></span></label>
-          <label class="tp-switch"><input type="checkbox" id="webTrends"><span class="tp-switch__text"><span data-i18n="run.trends"></span></span></label>
         </div>
       </section>
 
@@ -115,6 +99,7 @@
         <div class="tp-card__body">
           <label class="tp-switch"><input type="checkbox" id="autopilot"><span class="tp-switch__text"><b data-i18n="op.studio.autopilot"></b><span class="tp-help" data-i18n="op.studio.autopilotHelp"></span></span></label>
           <label class="tp-switch"><input type="checkbox" id="autofill"><span class="tp-switch__text"><span data-i18n="op.studio.autofill"></span><span class="tp-help" data-i18n="op.studio.autofillHelp"></span></span></label>
+          <label class="tp-switch"><input type="checkbox" id="replaceExisting"><span class="tp-switch__text"><b data-i18n="op.studio.replace"></b><span class="tp-help" data-i18n="op.studio.replaceHelp"></span></span></label>
           <label class="tp-switch"><input type="checkbox" id="studioCard"><span class="tp-switch__text"><span data-i18n="op.studio.card"></span></span></label>
           <label class="tp-switch"><input type="checkbox" id="tagSuggest"><span class="tp-switch__text"><span data-i18n="op.studio.tagSuggest"></span></span></label>
           <label class="tp-switch"><input type="checkbox" id="watchCard"><span class="tp-switch__text"><span data-i18n="op.studio.watchCard"></span></span></label>

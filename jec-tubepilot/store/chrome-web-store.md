@@ -1,4 +1,4 @@
-# Chrome Web Store listing — TubePilot 5
+# Chrome Web Store listing — TubePilot 5.1
 
 > Copy these texts into the Chrome Web Store developer dashboard. Name, short description and in-extension texts are already localized through `_locales/` (en, fr, ar).
 
@@ -26,23 +26,25 @@ TubePilot is the SEO co-pilot for music channels on YouTube. Instead of guessing
 • One-click Google Trends (YouTube search) for any keyword
 
 ✍️ A COMPLETE SEO PACK
-• 6–12 scored titles with different hooks (emotion, curiosity, direct address, share trigger, listening moment…) + 3 titles for YouTube “Test & compare”
+• 6–12 scored titles made for YouTube, with emojis and different hooks (emotion, curiosity, direct address, share trigger, listening moment…) + 3 titles for YouTube “Test & compare”
 • Description with a valid chapter timeline: 00:00 Intro · 00:45 🔥 Chorus
 • 25–40 tags within the 500-character limit, 3–5 trending hashtags
 • Pinned comment, thumbnail texts, the best Short to cut
 
 ⚡ FILLS YOUTUBE STUDIO
 • A card under the title: Analyze, click a title, Apply all
-• Autopilot on upload; only empty fields are filled — never what you typed
+• Replaces the old title, description and tags (option) and prepares the comment to pin
+• Autopilot on upload; what you type during the analysis is never overwritten
 • Popular searches suggested while you type tags
 • Analysis card on any YouTube video: views/hour, outlier score, hooks, tags
 
 🛡️ FOLLOWS YOUTUBE RULES
 Checks titles, descriptions, tags, hashtags and chapters against YouTube policies (misleading metadata, keyword stuffing, limits) before you publish.
 
-💎 TWO AI ENGINES
-• Your Gemini subscription (gemini.google.com): no key, no per-use cost
-• Gemini API (your own key): runs in the background, full-video analysis
+💎 YOUR OWN GEMINI ACCOUNT
+• Uses Gemini in your Google account (gemini.google.com), with the Pro model selected automatically
+• No API key, no AI Studio quota, no per-use cost
+• An expert master prompt: YouTube strategist + ethnomusicologist + SEO specialist + hook copywriter
 
 🌍 English, French and Arabic interface (right-to-left), light and dark themes.
 
@@ -57,7 +59,8 @@ TubePilot est le copilote SEO des chaînes musicales sur YouTube. Gemini **écou
 • 6 à 12 titres notés, titres A/B, description avec chapitres valides, tags ≤ 500 caractères, 3 à 5 hashtags
 • Carte dans YouTube Studio, pilote automatique à la mise en ligne, suggestions de tags
 • Contrôle des règles YouTube avant publication
-• Votre abonnement Gemini (sans clé) ou l’API Gemini
+• Votre propre compte Gemini, modèle Pro choisi automatiquement — sans clé API, sans quota AI Studio
+• Remplace l’ancienne description et les anciens tags, prépare le commentaire à épingler
 • Interface anglais / français / arabe, thème clair et sombre — aucune donnée sur nos serveurs
 
 ## Single purpose (dashboard field)
@@ -72,8 +75,7 @@ Help YouTube music creators write and insert SEO metadata (titles, description w
 | clipboardWrite | “Copy” buttons for titles, description, tags, hashtags and the manual-mode prompt. |
 | Host: studio.youtube.com | Reads the video being edited (title, description, tags, chosen file) and inserts the accepted proposals. |
 | Host: www.youtube.com | Analysis card on video pages; oEmbed check whether a video is public. |
-| Host: gemini.google.com | Subscription mode: types the request, attaches the audio and reads Gemini’s answer in the user’s own session. |
-| Host: generativelanguage.googleapis.com | API mode: Gemini API calls with the user’s own key. |
+| Host: gemini.google.com | Types the request (with the public video link or the attached audio), selects the model and reads Gemini’s answer in the user’s own signed-in session. |
 | Host: www.googleapis.com | YouTube Data API calls with the user’s own key (competition, statistics, trends). |
 | Host: suggestqueries.google.com | Real YouTube search suggestions for keyword research. |
 
@@ -93,4 +95,4 @@ Remote code: **No** — all code is in the package.
 Generate them with `SHOTS=./shots node tests/e2e/run.mjs`, then crop to 1280×800.
 
 ## Review notes for Google (dashboard “Notes for reviewer”)
-Test account not required. Install, open https://studio.youtube.com with any channel, upload a short audio/video file: the TubePilot card appears under the title. Subscription mode requires being signed in at gemini.google.com; API mode requires a Gemini API key (free at aistudio.google.com/apikey).
+Test account not required. Install, open https://studio.youtube.com with any channel, upload a short audio/video file: the TubePilot card appears under the title. Requires being signed in at gemini.google.com with any Google account (no API key).

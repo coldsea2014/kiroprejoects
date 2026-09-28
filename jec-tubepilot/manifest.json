@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_appName__",
   "short_name": "TubePilot",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "description": "__MSG_appDesc__",
   "minimum_chrome_version": "116",
   "icons": {
@@ -37,7 +37,6 @@
     "https://studio.youtube.com/*",
     "https://www.youtube.com/*",
     "https://gemini.google.com/*",
-    "https://generativelanguage.googleapis.com/*",
     "https://www.googleapis.com/*",
     "https://suggestqueries.google.com/*"
   ],

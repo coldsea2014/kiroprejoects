@@ -1,20 +1,8 @@
-// TubePilot — préparation du média sur l'ordinateur : durée, format, extraction audio (WAV 16 kHz mono) et tempo (BPM)
+// TubePilot — préparation du média sur l'ordinateur : durée, extraction audio (WAV 16 kHz mono) jointe à Gemini, tempo (BPM)
 import { t } from './lang.js';
 
-const GEMINI_VIDEO = /^video\/(mp4|mpeg|mov|quicktime|avi|x-msvideo|x-flv|mpg|webm|wmv|x-ms-wmv|3gpp)$/i;
-const GEMINI_AUDIO = /^audio\/(wav|x-wav|mp3|mpeg|aiff|x-aiff|aac|ogg|flac|x-flac|mp4|m4a|x-m4a|webm)$/i;
-const EXT_MIME = { mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', avi: 'video/avi', wmv: 'video/wmv', mpeg: 'video/mpeg', mpg: 'video/mpeg', '3gp': 'video/3gpp', flv: 'video/x-flv', mkv: 'video/x-matroska', mp3: 'audio/mp3', wav: 'audio/wav', m4a: 'audio/m4a', aac: 'audio/aac', ogg: 'audio/ogg', flac: 'audio/flac', aiff: 'audio/aiff' };
-
-export function mimeOf(file) {
-  const ext = String(file.name || '').split('.').pop().toLowerCase();
-  let type = file.type || EXT_MIME[ext] || '';
-  if (type === 'video/quicktime') type = 'video/mov';
-  if (type === 'audio/mpeg') type = 'audio/mp3';
-  return type;
-}
-
-export const isAudio = (file) => /^audio\//.test(mimeOf(file));
-export const geminiReadable = (file) => GEMINI_VIDEO.test(mimeOf(file)) || GEMINI_AUDIO.test(mimeOf(file));
+const EXT_AUDIO = /\.(mp3|wav|m4a|aac|ogg|flac|aiff?|opus)$/i;
+export const isAudio = (file) => /^audio\//.test(file?.type || '') || EXT_AUDIO.test(file?.name || '');
 
 // Durée et orientation (lecture des métadonnées uniquement)
 export function probe(file, timeoutMs = 10000) {
@@ -111,39 +99,6 @@ export function estimateBpm(samples, sr = 16000) {
   // ambiguïté d'octave (85 ↔ 170) : on propose aussi l'autre lecture
   const alt = best.bpm < 95 ? Math.round(best.bpm * 2) : best.bpm > 160 ? Math.round(best.bpm / 2) : null;
   return { bpm: Math.round(best.bpm), alt, confidence: Math.round(confidence * 100) / 100 };
-}
-
-// Prépare le média pour Gemini selon le mode : 'audio' (WAV léger), 'video' (fichier tel quel) ou 'auto'
-export async function prepare(file, { mode = 'auto', onStep } = {}) {
-  const info = await probe(file);
-  const mime = mimeOf(file);
-  const audioOnly = isAudio(file);
-  let wantAudio = mode === 'audio' || audioOnly;
-  // décoder l'audio d'une très longue vidéo saturerait la mémoire : on envoie alors la vidéo (résolution réduite)
-  const decodable = file.size <= 450 * 1024 * 1024 && (info.duration ? info.duration <= 40 * 60 : file.size <= 150 * 1024 * 1024);
-  if (mode === 'auto' && !audioOnly) wantAudio = !geminiReadable(file) || file.size > 1.5 * 1024 ** 3;
-  if (wantAudio && !decodable && geminiReadable(file)) wantAudio = false;
-  let samples = null, bpm = null;
-  // extraction locale : pour le mode audio, ou pour mesurer le tempo si le fichier est léger
-  if (decodable && (wantAudio || file.size <= 300 * 1024 * 1024)) {
-    try {
-      onStep?.('decode');
-      const buf = await decodeAudio(file);
-      samples = await toMono16k(buf);
-      bpm = estimateBpm(samples);
-      if (!info.duration) info.duration = buf.duration;
-    } catch (e) {
-      if (wantAudio && !geminiReadable(file)) throw new Error(t('media.unreadable'));
-      wantAudio = false;
-    }
-  } else if (wantAudio && !geminiReadable(file)) {
-    throw new Error(t('media.tooLong'));
-  }
-  if (wantAudio && samples) {
-    return { blob: wavBlob(samples), mime: 'audio/wav', kind: 'audio', info, bpm, displayName: file.name.replace(/\.[^.]+$/, '') + '.wav' };
-  }
-  if (!geminiReadable(file)) throw new Error(t('media.badFormat', { fmt: mime || file.name }));
-  return { blob: file, mime: mime.startsWith('audio/') || mime.startsWith('video/') ? mime : 'video/mp4', kind: audioOnly ? 'audio' : 'video', info, bpm, displayName: file.name };
 }
 
 // Audio pour la conversation gemini.google.com : WAV 16 kHz mono (30 min au plus) ; MP3/M4A légers joints tels quels si besoin

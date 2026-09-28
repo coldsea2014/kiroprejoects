@@ -18,7 +18,7 @@
 <body>
 <main>
   <h1>TubePilot — Privacy Policy</h1>
-  <p class="muted">Last updated: September 2026 · applies to the TubePilot browser extension, version 5 and later.</p>
+  <p class="muted">Last updated: September 2026 · applies to the TubePilot browser extension, version 5.1 and later.</p>
 
   <section>
     <h2>Summary</h2>
@@ -29,13 +29,13 @@
     <h2>Data processed and where it goes</h2>
     <table>
       <tr><th>Data</th><th>Why</th><th>Sent to</th></tr>
-      <tr><td>Audio of the video you analyse (extracted on your computer), or the video file in API mode, or the public video link</td><td>So that Gemini can listen to the song</td><td>Google Gemini — the Gemini web app you are signed in to (subscription mode) or the Gemini API with your own key (API mode)</td></tr>
+      <tr><td>Public link of the video you analyse, or its audio extracted on your computer (private videos)</td><td>So that Gemini can listen to the song</td><td>Google Gemini — the Gemini web app you are signed in to (gemini.google.com)</td></tr>
       <tr><td>Title, description, tags, file name, channel profile text, lyrics or notes you provide</td><td>To write the SEO proposals</td><td>Google Gemini (same as above)</td></tr>
       <tr><td>Search keywords</td><td>Real YouTube search suggestions</td><td>Google (suggestqueries.google.com)</td></tr>
       <tr><td>Keywords, channel IDs, video IDs</td><td>Competition, statistics, trends (optional)</td><td>YouTube Data API with your own key (www.googleapis.com)</td></tr>
       <tr><td>API keys, settings, channel profiles, analyses history, imported Keyword Planner volumes, competitor list</td><td>So the extension works</td><td>Nowhere — stored locally in your browser</td></tr>
     </table>
-    <p>Your use of these Google services is governed by the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>, the <a href="https://policies.google.com/terms" target="_blank" rel="noopener">Google Terms of Service</a>, the <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener">YouTube Terms of Service</a> and, for API mode, the <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener">Gemini API Additional Terms</a>. TubePilot uses YouTube API Services.</p>
+    <p>Your use of these Google services is governed by the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a>, the <a href="https://policies.google.com/terms" target="_blank" rel="noopener">Google Terms of Service</a>, the <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener">YouTube Terms of Service</a>. TubePilot uses YouTube API Services.</p>
   </section>
 
   <section>
@@ -47,8 +47,7 @@
     <h2>Retention and deletion</h2>
     <ul>
       <li>Analyses and cached searches stay in your browser until you delete them (History tab, <i>Settings › Backup › Clear the cache</i>) or uninstall the extension. Cached YouTube API data is refreshed or removed automatically (at most 30 days).</li>
-      <li>In API mode, the uploaded media is deleted from Google after analysis when “Delete the uploaded file” is on (default); otherwise Google deletes it automatically after 48 hours.</li>
-      <li>In subscription mode, the conversation stays in your Gemini history, which you control at <a href="https://gemini.google.com" target="_blank" rel="noopener">gemini.google.com</a> (Activity).</li>
+      <li>The Gemini conversation stays in your Gemini history, which you control at <a href="https://gemini.google.com" target="_blank" rel="noopener">gemini.google.com</a> (Activity).</li>
       <li>You can revoke TubePilot’s access to your Google data at any time by removing your keys, and review Google’s security settings at <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.</li>
     </ul>
   </section>

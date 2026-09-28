@@ -71,27 +71,23 @@ async function loadSettings() {
   const cur = sel.value || settings.activeProfile;
   sel.innerHTML = settings.profiles.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
   sel.value = settings.profiles.some((p) => p.id === cur) ? cur : settings.profiles[0].id;
-  $('#mediaMode').value = settings.mediaMode || 'auto';
   $('#lyricsChk').checked = !!settings.transcribeLyrics;
   $('#compChk').checked = !!settings.competitorLookup && !!settings.ytKey;
   $('#compChk').disabled = !settings.ytKey;
-  $('#webChk').checked = settings.webTrends !== false;
   const p = profile();
   const lang = String(p.languages || 'en').split(/[,\s]+/)[0];
   fillSelect($('#kwHl'), LANGS, $('#kwHl').value || lang, langName);
   fillSelect($('#kwGl'), COUNTRIES, $('#kwGl').value || p.country, countryName);
   fillSelect($('#trGl'), COUNTRIES, $('#trGl').value || p.country, countryName);
-  const web = settings.aiEngine !== 'api';
-  const ok = web || !!settings.geminiKey;
-  $('#engineChip').className = 'sp-engine' + (ok ? '' : ' off');
-  $('#engineChip').innerHTML = `<i></i>${esc(web ? t('engine.web') : t('engine.api'))}`;
+  $('#engineChip').className = 'sp-engine';
+  $('#engineChip').innerHTML = `<i></i>${esc(t('engine.web'))}`;
   syncSrc();
   renderFooter();
 }
 
 async function renderFooter() {
   const q = await getQuota();
-  $('#status').innerHTML = `<span>${ic('sparkles', 12)} ${esc(settings.aiEngine === 'api' ? `API · ${settings.modelMain || 'auto'}` : t('engine.web'))}</span>
+  $('#status').innerHTML = `<span>${ic('sparkles', 12)} ${esc(t('engine.web'))}</span>
     <span>${ic('chart', 12)} ${settings.ytKey ? esc(t('footer.quota', { n: q.toLocaleString(I18n.locale()) })) : esc(t('footer.noYtKey'))}</span>`;
 }
 
@@ -142,7 +138,7 @@ function renderCtx() {
   const img = box.querySelector('img.sp-thumb');
   if (img) img.addEventListener('error', () => { img.outerHTML = `<div class="sp-thumb sp-thumb--icon">${ic('video', 22)}</div>`; }, { once: true });
   if (!srcTouched) {
-    const v = ctx?.page === 'studio' && (ctx.hasFile || (ctx.videoId && settings.aiEngine !== 'api')) ? 'studio' : ctx?.page === 'watch' ? 'url' : 'file';
+    const v = ctx?.page === 'studio' && (ctx.hasFile || ctx.videoId) ? 'studio' : ctx?.page === 'watch' ? 'url' : 'file';
     $(`input[name=src][value=${v}]`).checked = true;
     syncSrc();
   }
@@ -167,8 +163,7 @@ function showProgress(p) {
   const el = $('#progress');
   if (!p) { show(el, false); return; }
   show(el, true);
-  const api = settings.aiEngine === 'api';
-  const order = STEPS.filter((s) => s.id !== 'done' && (api ? s.id !== 'gemini' : s.id !== 'upload' && s.id !== 'processing'));
+  const order = STEPS.filter((s) => s.id !== 'done');
   const idx = Math.max(0, order.findIndex((s) => s.id === p.step));
   const pct = p.pct != null ? Math.round(p.pct * 100) : null;
   el.innerHTML = `<div class="tp-progress">
@@ -191,11 +186,10 @@ function cancelRun() {
 
 async function runNow() {
   showError('');
-  if (settings.aiEngine === 'api' && !settings.geminiKey) return showError(t('err.apiNoKey'));
   const src = $('input[name=src]:checked').value;
   const channelMatch = ctx?.channelId && settings.profiles.some((p) => p.channelId === ctx.channelId);
   const extra = { keyword: $('#kwIn').value.trim(), notes: $('#notesIn').value.trim(), lyrics: $('#lyricsIn').value.trim(), profileId: channelMatch ? undefined : profile().id };
-  const options = { mediaMode: $('#mediaMode').value, transcribeLyrics: $('#lyricsChk').checked, competitors: $('#compChk').checked, webTrends: $('#webChk').checked, reanalyze: $('#reChk').checked };
+  const options = { transcribeLyrics: $('#lyricsChk').checked, competitors: $('#compChk').checked, reanalyze: $('#reChk').checked };
 
   if (src === 'studio') {
     if (ctx?.page !== 'studio' || ctx.stale) return showError(t('err.openStudio'));
@@ -635,7 +629,6 @@ async function kwAnalyze(kw) {
 }
 
 async function runHooks(titles, topic, out) {
-  if (settings.aiEngine === 'api' && !settings.geminiKey) { out.innerHTML = `<div class="tp-alert tp-alert--warn">${ic('key', 14)}<span>${esc(t('err.apiNoKey'))}</span></div>`; return; }
   out.innerHTML = `<div class="tp-row tp-small"><span class="tp-spinner"></span>${esc(t('hooks.running', { n: titles.length }))}</div>`;
   try {
     const r = await analyzeHooks(titles, { topic, profileId: profile().id });

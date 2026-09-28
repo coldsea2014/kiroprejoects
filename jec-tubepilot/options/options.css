@@ -22,17 +22,14 @@ html, body { margin: 0; background: var(--tp-bg); }
 .op-dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--tp-border-strong); flex: none; display: grid; place-items: center; }
 .op-steps li.done .op-dot { background: var(--tp-good-bg); border-color: var(--tp-good-bg); }
 .op-steps li.done .op-dot::after { content: ""; width: 8px; height: 4px; border-left: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(-45deg) translate(1px, -1px); }
-.op-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.op-choice { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 12px; border: 1px solid var(--tp-border); cursor: pointer; background: var(--tp-surface); }
-.op-choice:has(input:checked) { border-color: var(--tp-brand); box-shadow: var(--tp-focus); }
-.op-choice p { margin: 4px 0 0; }
-.op-choice .tp-chip { height: 20px; font-size: 10.5px; margin-inline-start: 6px; }
-.op-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.op-engine { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 12px; border: 1px solid var(--tp-brand); box-shadow: var(--tp-focus); background: var(--tp-surface); }
+.op-engine p { margin: 4px 0 0; }
+.op-engine .tp-chip { height: 20px; font-size: 10.5px; margin-inline-start: 6px; }
+.op-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: start; }
 .op-ol { margin: 0; padding-inline-start: 18px; display: grid; gap: 4px; }
 .op-profile { border: 1px solid var(--tp-border); border-radius: 12px; padding: 14px; display: grid; gap: 12px; background: var(--tp-surface-2); }
 .op-saved { position: fixed; inset-inline-end: 20px; bottom: 20px; z-index: 10; display: flex; align-items: center; gap: 8px; background: var(--tp-good-bg); color: #fff; padding: 9px 14px; border-radius: 12px; font-weight: 600; box-shadow: var(--tp-shadow-2); }
 @media (max-width: 860px) {
   .op-layout { grid-template-columns: 1fr; padding: 14px; }
   .op-nav { position: static; grid-auto-flow: column; overflow-x: auto; }
-  .op-choices { grid-template-columns: 1fr; }
 }

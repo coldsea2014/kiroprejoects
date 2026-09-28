@@ -1,7 +1,6 @@
-// TubePilot — réglages : langue, moteur IA, clés, Keyword Planner, Studio, profils de chaînes, sauvegarde
+// TubePilot — réglages : langue, Gemini (votre compte), clé YouTube, Keyword Planner, Studio, profils de chaînes, sauvegarde
 import { t, I18n } from '../lib/lang.js';
 import { getSettings, setSettings, DEFAULT_PROFILE, getCompetitors, setCompetitors, pruneCache } from '../lib/storage.js';
-import { listModels, rankModels } from '../lib/gemini.js';
 import { testKey as testYtKey } from '../lib/ytapi.js';
 import { importKeywordPlanner, kpStats, clearKeywordPlanner } from '../lib/kpimport.js';
 import '../lib/format.js';
@@ -12,8 +11,8 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const ic = (n, s = 15) => I.icon(n, s);
 
-const VALUES = ['geminiKey', 'ytKey', 'mediaMode', 'titleCount', 'geminiUrl', 'geminiSteps', 'geminiWindow'];
-const CHECKS = ['geminiClose', 'deleteFiles', 'transcribeLyrics', 'competitorLookup', 'webTrends', 'autopilot', 'autofill', 'studioCard', 'tagSuggest', 'watchCard'];
+const VALUES = ['ytKey', 'titleCount', 'geminiUrl', 'geminiModel', 'geminiSteps', 'geminiWindow'];
+const CHECKS = ['geminiClose', 'transcribeLyrics', 'competitorLookup', 'autopilot', 'autofill', 'replaceExisting', 'studioCard', 'tagSuggest', 'watchCard'];
 const PROFILE_FIELDS = ['name', 'channelId', 'handle', 'artistName', 'niche', 'genre', 'languages', 'country', 'audience', 'tone'];
 
 let settings;
@@ -35,41 +34,6 @@ function saveSoon(patch) {
 
 const status = (el, ok, msg) => { el.innerHTML = `<div class="tp-alert tp-alert--${ok ? 'good' : 'danger'}">${ic(ok ? 'check' : 'alert', 14)}<span>${esc(msg)}</span></div>`; };
 
-function fillModels(models, main, fast) {
-  const list = [...models];
-  [main, fast].forEach((id) => { if (id && !list.some((m) => m.id === id)) list.push({ id, label: id }); });
-  const opts = list.length ? list.map((m) => `<option value="${esc(m.id)}">${esc(m.label || m.id)} — ${esc(m.id)}</option>`).join('') : `<option value="">${esc(t('op.engine.testFirst'))}</option>`;
-  $('#modelMain').innerHTML = opts;
-  $('#modelFast').innerHTML = opts;
-  if (main) $('#modelMain').value = main;
-  if (fast) $('#modelFast').value = fast;
-}
-
-function syncEngine() {
-  const web = settings.aiEngine !== 'api';
-  $$('input[name=aiEngine]').forEach((r) => { r.checked = r.value === (web ? 'web' : 'api'); });
-  $('#webOpts').classList.toggle('tp-hidden', !web);
-  $('#apiOpts').classList.toggle('tp-hidden', web);
-}
-
-async function testGemini() {
-  const st = $('#geminiStatus');
-  const key = $('#geminiKey').value.trim();
-  if (!key) return status(st, false, t('op.pasteKey'));
-  st.innerHTML = `<div class="tp-row tp-small"><span class="tp-spinner"></span>${esc(t('op.testing'))}</div>`;
-  try {
-    const models = await listModels(key);
-    if (!models.length) throw new Error(t('op.engine.noModels'));
-    const r = rankModels(models);
-    const main = models.some((m) => m.id === settings.modelMain) ? settings.modelMain : r.pro || r.flash || r.all[0].id;
-    const fast = models.some((m) => m.id === settings.modelFast) ? settings.modelFast : r.flash || r.lite || main;
-    const list = r.all.map((m) => ({ id: m.id, label: m.label }));
-    fillModels(list, main, fast);
-    settings = await setSettings({ geminiKey: key, models: list, modelMain: main, modelFast: fast });
-    status(st, true, t('op.engine.keyOk', { n: models.length, main, fast }));
-  } catch (e) { status(st, false, e.message); }
-}
-
 async function testYt() {
   const st = $('#ytStatus');
   const key = $('#ytKey').value.trim();
@@ -87,7 +51,7 @@ async function testYt() {
 function renderSteps() {
   const p = settings.profiles[0] || {};
   const done = {
-    engine: settings.aiEngine !== 'api' ? !!settings.geminiOpened : !!settings.geminiKey,
+    engine: !!settings.geminiOpened,
     profile: !!(p.channelId || (p.name && p.name !== DEFAULT_PROFILE.name)),
     yt: !!settings.ytKey,
     studio: !!settings.studioVisited
@@ -145,24 +109,19 @@ async function renderKp() {
 
   VALUES.forEach((k) => { const el = $('#' + k); if (el) el.value = settings[k] ?? ''; });
   CHECKS.forEach((k) => { const el = $('#' + k); if (el) el.checked = !!settings[k]; });
-  fillModels(settings.models || [], settings.modelMain, settings.modelFast);
-  syncEngine();
   renderProfiles();
   renderSteps();
   renderKp();
 
   $('#uiLang').addEventListener('change', async (e) => { settings = await setSettings({ uiLang: e.target.value }); location.reload(); });
-  $$('input[name=aiEngine]').forEach((r) => r.addEventListener('change', () => { saveSoon({ aiEngine: r.value }); syncEngine(); }));
-  ['mediaMode', 'titleCount', 'modelMain', 'modelFast', 'geminiSteps', 'geminiWindow'].forEach((k) => $('#' + k).addEventListener('change', (e) => saveSoon({ [k]: k === 'titleCount' || k === 'geminiSteps' ? +e.target.value : e.target.value })));
+  ['titleCount', 'geminiModel', 'geminiSteps', 'geminiWindow'].forEach((k) => $('#' + k).addEventListener('change', (e) => saveSoon({ [k]: k === 'titleCount' || k === 'geminiSteps' ? +e.target.value : e.target.value })));
   $('#geminiUrl').addEventListener('change', (e) => {
     const v = e.target.value.trim();
     if (v && !/^https:\/\/gemini\.google\.com\//.test(v)) { e.target.value = settings.geminiUrl; return; }
     saveSoon({ geminiUrl: v || 'https://gemini.google.com/app' });
   });
-  $('#geminiKey').addEventListener('change', (e) => saveSoon({ geminiKey: e.target.value.trim() }));
   $('#ytKey').addEventListener('change', (e) => saveSoon({ ytKey: e.target.value.trim() }));
   CHECKS.forEach((k) => $('#' + k)?.addEventListener('change', (e) => saveSoon({ [k]: e.target.checked })));
-  $('#testGemini').addEventListener('click', testGemini);
   $('#testYt').addEventListener('click', testYt);
   $('#openGem').addEventListener('click', () => { chrome.tabs.create({ url: settings.geminiUrl || 'https://gemini.google.com/app' }); saveSoon({ geminiOpened: true }); });
   document.querySelector('#steps [data-step="studio"] a')?.addEventListener('click', () => saveSoon({ studioVisited: true }));

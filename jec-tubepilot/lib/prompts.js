@@ -76,16 +76,16 @@ export const SEO_SCHEMA = OBJ({
   secondary_keywords: ARR(STR(), '5 to 10 secondary real searches'),
   keyword_strategy: STR('1-2 sentences (explanation language): why these keywords, target countries and language'),
   audience_insight: STR('audience psychology in 1-2 sentences (explanation language)'),
-  titles: ARR(OBJ({ text: STR(), hook_type: STR('curiosity, emotion, direct address, share trigger, contrast, listening moment, question, pure keyword…'), angle: STR('why this title will work (explanation language, short)') }, ['text', 'hook_type'])),
+  titles: ARR(OBJ({ text: STR('40-70 characters, hook + main keyword in the first 40 characters, 1-2 emotion emojis, audience dialect'), hook_type: STR('curiosity, emotion, direct address, share trigger, contrast, listening moment, question, pure keyword…'), angle: STR('why this title will get the click (explanation language, short)') }, ['text', 'hook_type'])),
   ab_titles: ARR(STR(), '3 very different titles for YouTube "Test & compare"'),
-  description_intro: STR('first 2 lines: hook + main keyword, natural'),
+  description_intro: STR('first 2 lines (~150 characters, shown in search): hook + main keyword + emotional promise + 1 emoji'),
   description_body: STR('description body (without chapters or hashtags)'),
   lyrics_section: STR('chorus excerpt (channel-owned lyrics only) or empty'),
   cta: STR('call to action: subscribe, comment, share'),
   chapters: ARR(OBJ({ start: NUM('seconds'), label: STR() }), 'chapters in the video language'),
   tags: ARR(STR(), '25 to 40 tags ordered by importance'),
   hashtags: ARR(STR(), '3 to 5 hashtags: song title, style, 1-2 relevant trends'),
-  pinned_comment: STR('question that makes people comment + pointer to the best moment (mm:ss timestamp)'),
+  pinned_comment: STR('comment the channel pins: 1-3 short lines in the audience dialect — a question that makes people reply + the best moment with its mm:ss timestamp + 1-2 emojis'),
   thumbnail: OBJ({ texts: ARR(STR(), '3 thumbnail texts of 2 to 4 words'), concept: STR(), prompt: STR('AI image prompt (English), no celebrity face or logo') }),
   short: OBJ({ title: STR(), description: STR() }),
   compliance_notes: ARR(STR(), 'YouTube policy points to check (explanation language)'),
@@ -99,13 +99,6 @@ export const HOOKS_SCHEMA = OBJ({
   ideal_length: STR(),
   recommendations: ARR(STR()),
   title_ideas: ARR(OBJ({ text: STR(), hook_type: STR() }, ['text', 'hook_type']))
-});
-
-export const TRENDS_SCHEMA = OBJ({
-  keywords: ARR(STR(), 'searches / phrases rising right now for this style and these countries'),
-  hashtags: ARR(STR(), 'hashtags circulating right now (YouTube, TikTok, Instagram)'),
-  title_patterns: ARR(STR(), 'title formulas working right now'),
-  notes: STR('summary')
 });
 
 /* ---------- World styles & rhythms guide ---------- */
@@ -125,13 +118,21 @@ export const WORLD_MUSIC_GUIDE = `WORLD STYLES & RHYTHMS GUIDE — compare with 
 • Fusions: name them precisely ("khaliji × trap", "Iraqi rap on a drill beat", "jazz × chaabi", "RnB in Darija", "electro sheilat").
 RHYTHM METHOD: 1) count beats over several bars → BPM (say if it is half-time); 2) pulse: straight, compound (6/8, 12/8), swing or aksak (9/8, 7/8); 3) placement of low (DUM) and high (tak) strokes; 4) percussion; 5) melodic instruments; 6) scale / maqam; 7) dialect (words heard); 8) 2 to 4 candidate styles with confidence and evidence, then choose. The COUNTRY comes from musical evidence and dialect, not from the profile.`;
 
+/* ---------- Master persona ---------- */
+const MASTER = `You are TUBEPILOT MASTER — a panel of four senior experts who work as one mind:
+1. YOUTUBE GROWTH STRATEGIST — 10+ years growing music channels (Gulf, Iraq, Yemen, Levant, Egypt, Maghreb, Afro, urban, RnB, jazz) to millions of subscribers; you master packaging and click-through rate, search and suggested traffic, retention, returning viewers and the Shorts funnel.
+2. INTERNATIONAL ETHNOMUSICOLOGIST — you identify by ear any style, rhythmic cycle, maqam or scale, dialect, instrument and fusion from every music of the world.
+3. YOUTUBE & GOOGLE SEO SPECIALIST — you know what each audience really types (dialect spellings, Arabizi, Latin transliterations), search demand per country, and metadata that ranks while following YouTube policies.
+4. HOOK COPYWRITER — you write viral, emotional, TRUE hooks: curiosity gaps the video pays off, emotional triggers, share triggers, and emojis used with psychological intent.
+You are precise, never generic, and you never invent facts you did not hear or see.`;
+
 /* ---------- Shared rules ---------- */
 function rules(ctx) {
   const year = new Date().getFullYear();
   return `YOUTUBE / GOOGLE RULES (mandatory — "Spam, deceptive practices & scams" policy, hashtags, chapters):
 - Title ≤ ${P.LIMITS.title} characters (ideal 40-70), main keyword in the first half, no < or >.
 - The hook must be TRUE: it only promises what the video contains (no misleading clickbait).
-- No ALL-CAPS titles (1-2 capitalised words at most), no "!!!", 0 to 2 emotion emojis.
+- No ALL-CAPS titles (1-2 capitalised words at most), no "!!!"; 1-2 emotion emojis per title (never more than 2, never replacing the keyword).
 - ${ctx.profile?.officialArtist ? '"Official" allowed (official artist channel).' : 'Never "official / officiel / رسمي" (this is not an official artist channel).'}
 - No real artist, song or brand name that is not IN the video (misleading metadata is forbidden)${ctx.isCover ? ' — exception: credit the original of a cover, without "feat." or "official"' : ''}.
 - No "sub4sub", "free download", fake promises, and no raw keyword lists in the description.
@@ -174,8 +175,9 @@ function videoBlock(ctx) {
 
 /* ---------- 1. Audio / video analysis ---------- */
 export function analysisPrompt(ctx) {
-  const system = `You are at once an ethnomusicologist (every music of the world: Gulf, Iraq, Yemen, Levant, Egypt, Maghreb, Africa, Turkey, urban, jazz, RnB…), a sound engineer and a YouTube analyst.
-You ANALYSE the attached media: you listen to it and watch it ENTIRELY before answering.
+  const system = `${MASTER}
+
+STEP 1 — LISTENING ANALYSIS. You ANALYSE the media: you listen to it and watch it ENTIRELY, from the first to the last second, before answering. The AUDIO is what matters most.
 Method: 1) timestamped structure (intro, verses, choruses, bridge, drop, solo, outro — or tracks of a compilation); 2) lyrics heard; 3) the most repeated line = chorus; 4) language and dialect WITH evidence; 5) rhythm following the guide's METHOD; 6) main style, rejected candidates and fusion; 7) the 2 to 5 BEST moments (strongest chorus, drop, build-up, solo, beat switch); 8) audience, countries and the searches they type; 9) best 15-45 s excerpt for a Short; 10) final check.
 Invent nothing: if you do not hear a piece of information, leave the field empty and list it in "uncertain". Never identify a real person from their face or voice.
 Explanatory fields (summary, evidence, why, audience, uncertain, reason, lyrics_theme) are written in ${EXPL()}; hook_line, song_title_guess, lyrics, labels, genre_search_terms and search_queries stay in the audience's language and script.
@@ -241,9 +243,9 @@ ${vids.join('\n')}
 → Learn from the FORMULAS that work, never copy a title word for word; stand out.`;
 }
 
-function seoSystem(ctx) {
+function seoSystem(ctx, { master = true } = {}) {
   const langs = String(ctx.profile?.languages || '');
-  return `You are the best YouTube SEO strategist for ${ctx.profile?.niche || 'music'} channels in every style of the world (khaliji, sheilat, Iraqi rap, Yemeni, Egyptian, Maghrebi, RnB, jazz, afro…): titles with very strong hooks (audience psychology), descriptions rich in natural keywords, tags and hashtags aimed at the MOST SEARCHED queries — while strictly following YouTube / Google policies.
+  return `${master ? MASTER + '\n\n' : ''}STEP 2 — YOUTUBE PACKAGING for a ${ctx.profile?.niche || 'music'} channel: the best possible titles with hooks and emojis, a description that ranks with a timeline of the best moments, tags and hashtags aimed at the MOST SEARCHED queries, and a comment to pin — while strictly following YouTube / Google policies.
 You rely on the REAL DATA provided (YouTube searches, Keyword Planner volumes, competitors, trends) rather than assumptions.
 Metadata language: the language of the song's AUDIENCE (dialect heard)${langs ? `; channel languages: ${langs}. The description may add a short part in the other channel languages` : ''}. Explanatory fields (angle, audience_insight, keyword_strategy, compliance_notes, concept) are written in ${EXPL()}.`;
 }
@@ -273,26 +275,29 @@ function seoTasks(ctx, analysis, { listened = !!analysis } = {}) {
   const n = ctx.titleCount || 8;
   const hook = analysis?.music?.hook_line;
   const artist = ctx.profile?.artistName;
-  return `DELIVERABLES (like a professional YouTube SEO expert):
-1. main_keyword: among the REAL SEARCHES, the highest-demand one that truly matches this song (song title, style + country, or chorus line). It goes in title #1 (within the first 50 characters), the 1st line of the description, the 1st tag and, if short, a hashtag. secondary_keywords: 5 to 10 other real searches. keyword_strategy: explain the choice.
-2. titles: ${n} titles, each with a different lever:
-   a) search + emotion: "[title / chorus] [emoji] [style + country]";
+  const year = new Date().getFullYear();
+  return `DELIVERABLES (world-class YouTube packaging — every line must earn the click AND be true):
+1. main_keyword: among the REAL SEARCHES, the highest-demand one that truly matches this song (song title, style + country, or chorus line). It goes in title #1 (within the first 40 characters), the 1st line of the description, the 1st tag and, if short, a hashtag. secondary_keywords: 5 to 10 other real searches. keyword_strategy: explain the choice.
+2. titles: ${n} titles made for YouTube, each with a DIFFERENT lever:
+   a) search + emotion: "[song title / chorus] [emoji] [style + country]";
    b) direct address: "للي… / À toi qui… / For the one who…";
    c) share trigger: "صيفطها / ابعثها / Send it to…";
-   d) listening moment / belonging: jalsa, night drive, wedding, sahra…;
-   e) curiosity / open loop (TRUE: what is promised is in the video, e.g. the best moment);
+   d) listening moment / belonging: jalsa, night drive, wedding, sahra, gym…;
+   e) curiosity / open loop that the video PAYS OFF (e.g. the best moment at its timestamp);
    f) contrast or fusion ("khaliji but trap", "jazz × chaabi");
    g) emotional question;
-   h) pure keyword: "[style] [country] ${new Date().getFullYear()} | [title]".
-   ${hook ? `At least half start with the chorus line "${hook}" or the song title (that is what people type after hearing it).` : 'If the video is a song, at least half of the titles start with the chorus line or the song title.'}${artist ? ` 2 titles in the format "${artist} - [title] …".` : ''} Write in the audience's dialect; 1-2 emotion emojis at most.
-3. ab_titles: 3 very different titles for the YouTube "Test & compare" A/B test.
-4. description_intro: 2 strong lines (chorus / title + main keyword + emotional promise). description_body: 150-300 words — story and emotion, style and rhythm, when to listen, natural secondary keywords (never as a list), known credits${ctx.profile?.aiGenerated ? ', transparent mention of AI-assisted creation' : ''}. lyrics_section: short chorus excerpt only if the song belongs to the channel. cta: subscribe + comment + share.
-5. chapters: ${listened ? 'the full "00:05 Chorus" timeline: one marker per part (intro, verses, choruses, drop, bridge, outro), short catchy labels in the song language, first at 0, each ≥ 10 s; the best moments are marked to the second.' : 'leave the list EMPTY (without listening, timestamps would be invented).'}
-6. tags: 25-40, from most important to most specific: main keyword, song title (original + Latin script), style + country, names of the style in search, spelling variants and common misspellings, long tail, real searches${artist ? ', channel artist name' : ''}. Never an artist or brand absent from the video.
-7. hashtags: 3 to 5 — #song title, #style, 1-2 relevant TRENDING hashtags, no spaces. pinned_comment: a question that makes the audience tell their own story + pointer to the best moment ("🔥 01:12").
-8. thumbnail: 3 short texts (2-4 words), a concept, an image prompt. short: title + description for a Short cut from the best excerpt.
-9. compliance_notes: what the creator must check (AI, cover, rights…).
-Check before answering: lengths, main keyword first, truth of the hook, no misleading name, relevant hashtags.`;
+   h) pure keyword: "[style] [country] ${year} | [title]".
+   Rules for EVERY title: 40-70 characters; the hook and the main keyword in the first 40 characters (mobile truncation); 1-2 emojis chosen for the emotion of THIS song (🔥 energy, 💔 heartbreak, ❤️ love, 😢 sadness, 🌙 night, 🚗 drive, 💃 dance, 🥁 rhythm, 🎶 music, 👑 pride, 💍 wedding) placed right after the hook or at the end — never at the very start, never more than 2; written in the audience's dialect; no ALL CAPS, no fake promises.
+   ${hook ? `At least half start with the chorus line "${hook}" or the song title (that is what people type after hearing it).` : 'If the video is a song, at least half of the titles start with the chorus line or the song title.'}${artist ? ` 2 titles in the format "${artist} - [title] …".` : ''} Rank them from strongest to weakest.
+3. ab_titles: 3 very different titles for the YouTube "Test & compare" A/B test (different emotion, different first word).
+4. description_intro: the 2 lines shown in search (~150 characters): hook + main keyword + emotional promise + 1 emoji. description_body: 150-300 words in short paragraphs — the story and emotion of the song, style and rhythm (named precisely), when to listen, the best moment ("🔥 at 01:12…"), natural secondary keywords (never as a list), known credits${ctx.profile?.aiGenerated ? ', a transparent mention of AI-assisted creation' : ''}. lyrics_section: short chorus excerpt only if the song belongs to the channel. cta: subscribe + comment + share, in the audience dialect, with 1-2 emojis.
+5. chapters: ${listened ? 'the full timeline of the song ("00:00 Intro", "00:32 🔥 Chorus"…): one marker per part (intro, verses, choruses, drop, solo, bridge, outro), short catchy labels in the song language, first at 0, each ≥ 10 s, ascending; the BEST moments are marked to the second (the extension adds 🔥 to them).' : 'leave the list EMPTY (without listening, timestamps would be invented).'}
+6. tags: 25-40, from most important to most specific, total under 450 characters: main keyword, song title (original + Latin script), style + country, names of the style in search, dialect spelling variants and common misspellings, long tail, real searches${artist ? ', channel artist name' : ''}. Never an artist or brand absent from the video.
+7. hashtags: 3 to 5 — #song title, #style, 1-2 relevant TRENDING hashtags, no spaces.
+8. pinned_comment: the comment the channel will pin under the video — 1-3 short lines in the audience dialect: a question that makes people reply (their story, their city, who they would send the song to) + the best moment with its timestamp ("🔥 01:12") + 1-2 emojis. Never "sub4sub", never begging.
+9. thumbnail: 3 short texts (2-4 words), a concept, an image prompt. short: title + description for a Short cut from the best excerpt.
+10. compliance_notes: what the creator must check (AI, cover, rights…).
+Final check before answering: title lengths and emojis, main keyword first, truth of every hook, no misleading name, relevant hashtags, valid timeline, JSON complete.`;
 }
 
 // Slim analysis for the 2nd request (no full lyrics, to save tokens)
@@ -306,14 +311,6 @@ function slimAnalysis(a) {
     timeline: a.timeline, highlights: a.highlights, tracks: a.tracks, best_short: a.best_short, visual: a.visual, audience: a.audience,
     search_queries: a.search_queries, topics: a.topics, duration_seconds: a.duration_seconds
   };
-}
-
-/* ---------- Web trends (Google Search through Gemini) ---------- */
-export function trendsPrompt({ genre, countries, language, terms }) {
-  const month = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  return `Search Google for what is trending RIGHT NOW (${month}) on YouTube, TikTok and Instagram for "${genre}" music${terms?.length ? ` (${terms.join(', ')})` : ''} in ${countries?.length ? countries.join(', ') : 'the Arab world'}, language "${language || 'ar'}".
-Give: rising searches / phrases, hashtags that really circulate, and title formulas that work. Only items found in your searches, never invented; no artist names. Write "notes" in ${EXPL()}.
-Answer ONLY with a JSON object: {"keywords": [], "hashtags": [], "title_patterns": [], "notes": ""}`;
 }
 
 /* ---------- 3. Competitor hooks ---------- */
@@ -347,9 +344,16 @@ ${JSON.stringify(jsonExample(schema), null, 1)}
 \`\`\``;
 
 const mediaLine = (link) => (link
-  ? `VIDEO TO ANALYZE: ${link}
-Open this YouTube video with your YouTube tool, watch it and listen to it ENTIRELY.`
-  : 'The attached audio file is the complete soundtrack of the video: listen to it ENTIRELY.');
+  ? `VIDEO TO ANALYZE (public YouTube video): ${link}
+Open this YouTube link with your YouTube / video tool, then watch it and LISTEN to the full audio from start to end. Base every field on what you actually hear and see in THIS video — not on its title, not on search results.`
+  : 'The attached audio file is the complete soundtrack of the video: listen to it ENTIRELY, from start to end.');
+
+// Gemini n'a pas ouvert le lien du premier coup : on le lui redemande dans la même conversation
+export function webLinkRetryPrompt(link) {
+  return `You answered that you could not access the video. It is a PUBLIC YouTube video: ${link}
+Try again now: open it with your YouTube / video tool, listen to the full audio, then answer with the COMPLETE JSON, in exactly the format requested in my previous message.
+Only if it is truly impossible, answer: {"error": "no_access"}`;
+}
 
 export function webAnalysisPrompt(ctx, { link = '' } = {}) {
   const a = analysisPrompt(ctx);
@@ -384,7 +388,7 @@ If you CANNOT access the video or the sound, answer only: {"error": "no_access"}
 
 Do TWO things: A) the music and video analysis (key "analysis"); B) the YouTube SEO pack based on this analysis (key "seo").
 
-${seoSystem(ctx)}
+${seoSystem(ctx, { master: false })}
 
 ${a.text}
 
@@ -411,7 +415,7 @@ I attached my video (or its audio). Listen to it and watch it entirely, then do 
 A) the music and video analysis (key "analysis");
 B) the YouTube SEO pack based on this analysis (key "seo").
 
-${seoSystem(ctx)}
+${seoSystem(ctx, { master: false })}
 
 ${a.text}
 

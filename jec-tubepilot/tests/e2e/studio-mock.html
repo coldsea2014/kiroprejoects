@@ -37,8 +37,13 @@
   });
   document.getElementById('toggle-button').addEventListener('click', () => document.getElementById('more').classList.remove('hidden'));
   const input = document.getElementById('text-input');
-  const addChip = (t) => { t = t.trim(); if (!t) return; const c = document.createElement('ytcp-chip'); c.innerHTML = '<span id="chip-text"></span>'; c.firstChild.textContent = t; document.getElementById('chips').appendChild(c); };
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { addChip(input.value); input.value = ''; } });
+  // comme Studio : chaque tag a une croix de suppression ; Retour arrière dans le champ vide supprime le dernier
+  const addChip = (t) => { t = t.trim(); if (!t) return; const c = document.createElement('ytcp-chip'); c.innerHTML = '<span id="chip-text"></span><button id="delete-icon" aria-label="Delete">×</button>'; c.firstChild.textContent = t; c.lastChild.addEventListener('click', () => c.remove()); document.getElementById('chips').appendChild(c); };
+  window.addChip = addChip;
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { addChip(input.value); input.value = ''; }
+    if (e.key === 'Backspace' && !input.value) document.querySelector('#chips ytcp-chip:last-child')?.remove();
+  });
   input.addEventListener('input', () => { if (input.value.includes(',')) { input.value.split(',').slice(0, -1).forEach(addChip); input.value = input.value.split(',').pop(); } });
 </script>
 </body>

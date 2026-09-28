@@ -34,9 +34,9 @@
 </head>
 <body>
 <header><div class="in">
-  <h1>TubePilot 5</h1>
+  <h1>TubePilot 5.1</h1>
   <p>AI SEO for music videos on YouTube — Gemini listens to your song, then writes titles, a 00:00 timeline of the best moments, tags and hashtags, and fills YouTube Studio for you.</p>
-  <nav><a href="#install">Install</a><a href="#start">Quick start</a><a href="#engines">AI engines</a><a href="#studio">YouTube Studio</a><a href="#panel">Side panel</a><a href="#kp">Keyword Planner</a><a href="#rules">YouTube rules</a><a href="#trouble">Troubleshooting</a><a href="#faq">FAQ</a><a href="#fr">Français</a></nav>
+  <nav><a href="#install">Install</a><a href="#start">Quick start</a><a href="#engines">Gemini</a><a href="#studio">YouTube Studio</a><a href="#panel">Side panel</a><a href="#kp">Keyword Planner</a><a href="#rules">YouTube rules</a><a href="#trouble">Troubleshooting</a><a href="#faq">FAQ</a><a href="#fr">Français</a></nav>
 </div></header>
 <main>
 
@@ -46,7 +46,7 @@
     <li><b>Listens to the song</b> (uploaded file or public link) with Gemini: style, rhythm and tempo (BPM, meter, maqam), dialect, chorus, lyrics, 2–5 best moments. Built for every music of the world: khaliji, sheilat, Iraqi rap, Yemeni, Egyptian, Maghrebi chaabi / rai / gnawa, afro, trap / drill, RnB, jazz and fusions.</li>
     <li><b>Real keywords</b>: YouTube search suggestions (A→Z) in the country and language of the style heard, optional real monthly volumes imported from <b>Google Keyword Planner</b>, competition score from the YouTube Data API, Google Trends links.</li>
     <li><b>Writes the SEO pack</b>: 6–12 scored titles with different hooks, A/B titles for “Test &amp; compare”, description with a valid chapter timeline (<code>00:00 Intro</code> … <code>00:45 🔥 Chorus</code>), 25–40 tags within 500 characters, 3–5 trending hashtags, pinned comment, thumbnail texts and a Short to cut.</li>
-    <li><b>Fills YouTube Studio</b> automatically (only empty fields — never what you typed) and checks YouTube policies before you publish.</li>
+    <li><b>Fills YouTube Studio</b> automatically: the old title, description and tags are <b>deleted and replaced</b> (option), never what you type during the analysis; a <b>comment to pin</b> is ready to copy. YouTube policies are checked before you publish.</li>
     <li>Competitor tracking (outlier videos, best hours, top tags), trends, history, three interface languages (English, French, Arabic with right-to-left layout), light and dark themes.</li>
   </ul>
 </section>
@@ -62,7 +62,7 @@
     <li>Click <b>Load unpacked</b> and select the <code>tubepilot</code> folder (the one containing <code>manifest.json</code>).</li>
     <li>Pin the TubePilot icon in the toolbar: a click opens the side panel.</li>
   </ol>
-  <p class="muted">Requirements: Chrome 116+ (or Edge / Brave based on Chromium 116+), a Google account. Optional: a Gemini API key, a YouTube Data API key, a Google Ads account for Keyword Planner.</p>
+  <p class="muted">Requirements: Chrome 116+ (or Edge / Brave based on Chromium 116+), a Google account. No AI Studio / Gemini API key is needed. Optional: a YouTube Data API key, a Google Ads account for Keyword Planner.</p>
 </section>
 
 <section id="start">
@@ -76,16 +76,18 @@
 </section>
 
 <section id="engines">
-  <h2>AI engines</h2>
-  <table>
-    <tr><th></th><th>My Gemini subscription (default)</th><th>Gemini API</th></tr>
-    <tr><td>Key needed</td><td>No — uses the Gemini web app you are signed in to</td><td>Yes — free key from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></td></tr>
-    <tr><td>Cost</td><td>Included in your Gemini plan</td><td>Free tier with limits, then pay-as-you-go</td></tr>
-    <tr><td>How media is sent</td><td>Public link, or the audio extracted on your computer (16 kHz WAV) attached to the chat</td><td>Upload to the Gemini File API (audio or full video), deleted after analysis (option)</td></tr>
-    <tr><td>Where it runs</td><td>A small Gemini window in the corner (or a background tab) that closes by itself</td><td>In the background</td></tr>
-    <tr><td>Trends</td><td>Gemini searches Google in the same conversation</td><td>Google Search grounding</td></tr>
-  </table>
-  <p class="note">Subscription mode drives the Gemini web page inside <b>your own browser session</b>. If Google changes that page, use <b>Manual mode (copy / paste)</b> in the side panel or switch to the API engine until an update is published.</p>
+  <h2>Gemini — your own Google account</h2>
+  <p>TubePilot uses <b>Gemini in your own Google account</b> (gemini.google.com). There is <b>no API key and no AI Studio quota</b>: requests count against your Gemini plan like any conversation you have with Gemini.</p>
+  <ol>
+    <li>TubePilot opens Gemini in a small window in the corner of the screen (or a background tab).</li>
+    <li>It selects the <b>Pro</b> model in Gemini’s model menu (setting <i>Gemini model</i>; choose “Keep the model selected in Gemini” to disable).</li>
+    <li>It sends the <b>expert master prompt</b> with the <b>public link</b> of the video — or, for a private video, the audio of your file extracted on your computer (16 kHz WAV) and attached to the chat.</li>
+    <li>If Gemini does not open the link the first time, TubePilot asks again in the same conversation.</li>
+    <li>It reads Gemini’s JSON answer, sends a second request with the real YouTube searches (2-step mode), fills YouTube Studio and closes the window.</li>
+  </ol>
+  <p class="note">TubePilot drives the Gemini web page inside <b>your own browser session</b>. If Google changes that page, use <b>Manual mode (copy / paste)</b> in the side panel until an update is published.</p>
+  <h3>The master prompt</h3>
+  <p>Gemini works as a panel of four experts — YouTube growth strategist, international ethnomusicologist, YouTube &amp; Google SEO specialist and hook copywriter. It listens to the whole song, then delivers: 6–12 titles made for YouTube (40–70 characters, hook and keyword in the first 40, 1–2 emotion emojis, the audience’s dialect), a description whose first two lines rank in search, a timeline of the song with the best moments marked 🔥, 25–40 tags, 3–5 hashtags and a comment to pin.</p>
   <h3>Two steps or one</h3>
   <p><b>2 steps</b> (recommended): Gemini listens first; TubePilot then researches real YouTube searches in the style’s country and sends a second request in the same conversation. <b>1 step</b> is faster but uses fewer real keyword data.</p>
 </section>
@@ -95,8 +97,9 @@
   <ul>
     <li>The card sits between the <b>Title</b> and the <b>Description</b> on the Details page (upload dialog or video edit page).</li>
     <li><b>Analyze with Gemini</b>: listens to the uploaded file (captured when you choose it in Studio) or to the public link. <b>Choose the file</b> if the video was uploaded earlier. <b>Quick</b>: no listening, a few seconds.</li>
-    <li>Tabs: <b>Titles</b> (score, hook type — click to apply), <b>Description</b>, <b>Tags</b>, <b>Insights</b> (style, BPM, best moments, keyword demand and competition), <b>Rules</b> (policy checks).</li>
-    <li><b>Autopilot</b> (setting): analysis starts as soon as a video is uploaded. <b>Fill empty fields</b>: TubePilot never overwrites what you typed.</li>
+    <li>Tabs: <b>Titles</b> (score, hook type — click to apply), <b>Description</b>, <b>Tags</b>, <b>Comment</b>, <b>Insights</b> (style, BPM, best moments, keyword demand and competition), <b>Rules</b> (policy checks).</li>
+    <li><b>Autopilot</b> (setting): analysis starts as soon as a video is uploaded. <b>Replace the old title, description and tags</b> (on by default): the old description and old tags are deleted and replaced; turn it off to fill only empty fields. What you type during the analysis is never overwritten. On an existing video, click <b>Save</b> in Studio afterwards.</li>
+    <li><b>Comment</b> tab: the comment to pin (a question + the best moment with its timestamp). Copy it, post it under the video, then ⋮ › Pin.</li>
     <li>While typing tags, popular YouTube searches are suggested.</li>
     <li>On any YouTube video page, a card shows views/hour, outlier score, hooks, tags and chapters, with <b>Analyze with Gemini</b>.</li>
   </ul>
@@ -143,7 +146,7 @@
   <table>
     <tr><th>“TubePilot was updated: reload this page”</th><td>Reload the YouTube / Studio tab (F5) after installing or updating the extension.</td></tr>
     <tr><th>The Gemini window asks me to sign in</th><td>Sign in inside that window; TubePilot continues by itself. For another Google account, paste its Gemini address (e.g. <code>https://gemini.google.com/u/1/app</code>) in Settings › AI engine.</td></tr>
-    <tr><th>“Drag the audio file into Gemini”</th><td>Gemini refused the automatic attachment: drag the file shown, TubePilot then continues. Or use the API engine.</td></tr>
+    <tr><th>“Drag the audio file into Gemini”</th><td>Gemini refused the automatic attachment: drag the file shown, TubePilot then continues.</td></tr>
     <tr><th>No timeline</th><td>The video was not listened to (quick mode, private video without file). Choose the file and analyze again.</td></tr>
     <tr><th>Tags field not found</th><td>Click “Show more” on the Studio Details page.</td></tr>
     <tr><th>YouTube quota reached</th><td>The free quota (10,000 units/day) resets at midnight Pacific time. Disable “Compare keywords” to save quota.</td></tr>

@@ -17,7 +17,7 @@
   let settings = {};
   async function loadSettings() {
     const s = (await chrome.storage.local.get('settings')).settings || {};
-    settings = { autopilot: true, autofill: true, studioCard: true, tagSuggest: true, aiEngine: 'web', ...s };
+    settings = { autopilot: true, autofill: true, replaceExisting: true, studioCard: true, tagSuggest: true, ...s };
     globalThis.TPI18n.setLang(settings.uiLang || 'auto');
   }
 
@@ -290,11 +290,6 @@
     await loadSettings();
     lastError = '';
     note = '';
-    if (settings.aiEngine === 'api' && !settings.geminiKey) {
-      lastError = t('studio.apiNoKey');
-      render();
-      return { started: false, error: lastError };
-    }
     const k = keys();
     const e = els();
     const packKey = file ? `file:${file.name}:${file.size}` : (mode !== 'full' && packFor) || k.key || (youtubeUrl ? 'url:' + (youtubeUrl.match(/[\w-]{11}/)?.[0] || '') : 'manual:' + Date.now());
@@ -311,7 +306,7 @@
       aliases: mode !== 'full' && pack?.key && pack.key !== packKey ? [pack.key] : [],
       ...extra
     };
-    job = { id: crypto.randomUUID(), key: packKey, auto, step: 'prepare', pct: null, detail: '', warn: '', initial: { title: ctx.currentTitle, description: ctx.currentDescription, tags: ctx.currentTags }, fileName: ctx.fileName };
+    job = { id: crypto.randomUUID(), key: packKey, auto, upload: !!dialog(), step: 'prepare', pct: null, detail: '', warn: '', initial: { title: ctx.currentTitle, description: ctx.currentDescription, tags: ctx.currentTags }, fileName: ctx.fileName };
     processed.add(packKey);
     collapsed = false;
     render();
@@ -354,22 +349,42 @@
 
   const sameTags = (a, b) => a.length === b.length && a.every((x, i) => F.norm(x) === F.norm(b[i]));
 
-  // Remplit seulement les champs vides ou restés au nom du fichier — ce que vous avez tapé n'est jamais remplacé
+  // Fin de l'analyse : le meilleur titre, la description (avec timeline) et les tags sont écrits dans Studio.
+  // Réglage « remplacer » (par défaut) : l'ancienne description et les anciens tags sont supprimés et remplacés, ainsi que
+  // l'ancien titre d'une vidéo déjà en ligne ; pendant un import, le titre n'est remplacé que s'il est resté au nom du fichier.
+  // Sinon, seuls les champs vides (ou le titre resté au nom du fichier) sont remplis.
+  // Dans tous les cas, un champ que vous avez modifié PENDANT l'analyse n'est jamais écrasé.
   async function autofill(j, p) {
     const e = els();
     if (!e.title || !p?.seo) return;
+    const replace = settings.replaceExisting !== false;
     const cur = { title: text(e.title), description: text(e.description), tags: currentTags() };
     const base = String(j.fileName || '').replace(/\.[^.]+$/, '');
+    const untouched = { title: cur.title === j.initial.title, description: cur.description === j.initial.description, tags: sameTags(cur.tags, j.initial.tags) };
     const filled = [];
+    let typed = false;
     const titleDefault = !j.initial.title || F.norm(j.initial.title) === F.norm(base);
-    if (cur.title === j.initial.title && titleDefault && p.seo.titles[0]) { setEditable(e.title, p.seo.titles[0].text); filled.push(t('field.title1')); }
-    if (e.description && cur.description === j.initial.description && !cur.description) { setEditable(e.description, p.seo.description); filled.push(t('field.description')); }
-    if (sameTags(cur.tags, j.initial.tags) && !cur.tags.length && p.seo.tags.length) {
-      try { await setTags(p.seo.tags, false); filled.push(t('field.tags')); } catch (err) { /* champ tags absent */ }
+    if (p.seo.titles[0]) {
+      if (!untouched.title) typed = true;
+      else if (titleDefault || (replace && !j.upload)) { setEditable(e.title, p.seo.titles[0].text); filled.push(t('field.title1')); }
     }
-    note = filled.length
-      ? t('studio.autofilled', { fields: filled.join(', ') })
-      : t('studio.notReplaced');
+    if (e.description && p.seo.description) {
+      if (!untouched.description) typed = true;
+      else if (replace || !cur.description) { setEditable(e.description, p.seo.description); filled.push(t('field.description')); }
+    }
+    if (p.seo.tags.length) {
+      if (!untouched.tags) typed = true;
+      else if (replace || !cur.tags.length) {
+        try { await setTags(p.seo.tags, true); filled.push(t('field.tags')); } catch (err) { /* champ tags absent */ }
+      }
+    }
+    const replaced = replace && (j.initial.description || j.initial.tags.length);
+    note = [
+      filled.length ? t(replaced ? 'studio.replaced' : 'studio.autofilled', { fields: filled.join(', ') }) : '',
+      typed ? t('studio.keptTyped') : '',
+      !filled.length && !typed ? t('studio.notReplaced') : '',
+      filled.length && !dialog() ? t('studio.saveHint') : ''
+    ].filter(Boolean).join(' ');
     render();
   }
 
@@ -424,12 +439,11 @@
     });
   }
 
-  const STEPS = ['prepare', 'upload', 'processing', 'gemini', 'analyze', 'keywords', 'trends', 'competition', 'seo'];
+  const STEPS = ['prepare', 'gemini', 'analyze', 'keywords', 'trends', 'competition', 'seo'];
 
   function progressHtml() {
     if (!job) return '';
-    // étapes propres au moteur choisi (API : envoi + traitement ; abonnement : fenêtre Gemini)
-    const order = STEPS.filter((k) => (settings.aiEngine === 'api' ? k !== 'gemini' : k !== 'upload' && k !== 'processing'));
+    const order = STEPS;
     const idx = Math.max(0, order.indexOf(job.step));
     const pct = job.pct != null ? Math.round(job.pct * 100) : null;
     return `<div class="tp-progress" data-part="progress">
@@ -507,8 +521,15 @@
         ${a?.music?.hook_line ? `<div class="tp-row tp-small">${ic('mic', 14)}<span>${esc(t('insight.hook'))} « <b class="tp-bidi">${esc(a.music.hook_line)}</b> »${a.music.hook_start != null ? ` · ${F.ts(a.music.hook_start)}` : ''}</span></div>` : ''}
         ${a?.highlights?.length ? `<div class="tp-list">${a.highlights.map((h) => `<div class="tp-item"><span class="tp-chip tp-chip--hot">${ic('flame', 12)}${F.ts(h.start)}</span><div class="tp-item__main"><div class="tp-item__title tp-bidi">${esc(h.label)}</div><div class="tp-item__meta">${esc(h.why || h.kind || '')}</div></div></div>`).join('')}</div>` : ''}
         ${s.mainKeyword ? `<div class="tp-row tp-small">${ic('key', 14)}<span>${esc(t('insight.mainKeyword'))} <b class="tp-bidi">${esc(s.mainKeyword)}</b></span>${c ? `<span class="tp-faint">${esc(t('insight.demand'))} ${c.demand}/100 · ${esc(t('insight.competition'))} ${c.competition}/100</span>` : ''}</div>` : ''}
-        ${s.chapters?.length ? `<details class="tp-small"><summary class="tp-muted">${ic('clock', 13)} ${esc(t('studio.timeline', { n: s.chapters.length }))}</summary><div class="tp-pre" style="margin-top:6px">${s.chapters.map((x) => `${F.ts(x.t)} ${esc(x.label)}`).join('\n')}</div></details>` : ''}
-        ${s.pinnedComment ? `<div class="tp-row tp-small">${ic('message', 14)}<span class="tp-grow tp-bidi">${esc(s.pinnedComment)}</span><button class="tp-btn tp-btn--ghost tp-btn--sm" data-act="copy" data-what="pinned">${ic('copy', 13)}</button></div>` : ''}`;
+        ${s.chapters?.length ? `<details class="tp-small"><summary class="tp-muted">${ic('clock', 13)} ${esc(t('studio.timeline', { n: s.chapters.length }))}</summary><div class="tp-pre" style="margin-top:6px">${s.chapters.map((x) => `${F.ts(x.t)} ${esc(x.label)}`).join('\n')}</div></details>` : ''}`;
+    }
+    if (tab === 'comment') {
+      const vid = keys().vid;
+      if (!s.pinnedComment) return `<div class="tp-small tp-muted">${esc(t('studio.noComment'))}</div>`;
+      return `<div class="tp-pre tp-bidi">${esc(s.pinnedComment)}</div>
+        <div class="tp-row"><button class="tp-btn tp-btn--primary tp-btn--sm" data-act="copy" data-what="pinned">${ic('copy', 14)} ${esc(t('studio.copyComment'))}</button>
+        ${vid ? `<a class="tp-btn tp-btn--sm" href="https://www.youtube.com/watch?v=${esc(vid)}" target="_blank" rel="noopener">${ic('external', 14)} ${esc(t('studio.openVideo'))}</a>` : ''}</div>
+        <div class="tp-help">${ic('info', 13)} ${esc(t('studio.pinHint'))}</div>`;
     }
     return issuesHtml(issues);
   }
@@ -517,8 +538,6 @@
     if (!card) return;
     const k = keys();
     const live = liveScore();
-    const web = settings.aiEngine !== 'api';
-    const hasKey = web || !!settings.geminiKey;
     const f = k.file;
     const s = pack?.seo;
     const e = els();
@@ -533,13 +552,12 @@
       body = `<div class="tp-row tp-row--nowrap" style="align-items:flex-start">
           <div class="tp-acc__icon" style="width:36px;height:36px">${ic('sparkles', 18)}</div>
           <div class="tp-grow tp-stack tp-stack--sm">
-            <div><b>${esc(t('studio.heroTitle'))}</b><div class="tp-small tp-muted">${esc(web ? t('studio.heroWeb') : t('studio.heroApi'))}</div></div>
+            <div><b>${esc(t('studio.heroTitle'))}</b><div class="tp-small tp-muted">${esc(t('studio.heroWeb'))}</div></div>
             ${source ? `<div class="tp-small tp-faint tp-ellipsis">${source}</div>` : ''}
             <div class="tp-row">
               ${f ? `<button class="tp-btn tp-btn--primary" data-act="run">${ic('sparkles', 15)} ${esc(t('studio.analyze'))}</button>`
-                : k.vid && web ? `<button class="tp-btn tp-btn--primary" data-act="auto" title="${esc(t('studio.analyzeLinkHint'))}">${ic('sparkles', 15)} ${esc(t('studio.analyze'))}</button><button class="tp-btn" data-act="pick">${ic('upload', 15)} ${esc(t('studio.pickFile'))}</button>`
+                : k.vid ? `<button class="tp-btn tp-btn--primary" data-act="auto" title="${esc(t('studio.analyzeLinkHint'))}">${ic('sparkles', 15)} ${esc(t('studio.analyze'))}</button><button class="tp-btn" data-act="pick">${ic('upload', 15)} ${esc(t('studio.pickFile'))}</button>`
                   : `<button class="tp-btn tp-btn--primary" data-act="pick">${ic('upload', 15)} ${esc(t('studio.pickFile'))}</button>`}
-              ${!f && k.vid && !web ? `<button class="tp-btn" data-act="url" title="${esc(t('studio.publicOnly'))}">${ic('link', 15)} ${esc(t('studio.viaLink'))}</button>` : ''}
               <button class="tp-btn tp-btn--ghost" data-act="express" title="${esc(t('studio.quickHint'))}">${ic('zap', 15)} ${esc(t('studio.quick'))}</button>
             </div>
           </div>
@@ -549,6 +567,7 @@
         ['titles', 'sparkles', t('tab.titles'), s.titles.length],
         ['description', 'file', t('tab.description')],
         ['tags', 'tag', t('tab.tags'), s.tags.length],
+        ['comment', 'message', t('tab.comment')],
         ['insights', 'music', t('tab.insights')],
         ['policy', 'shield', t('tab.policy'), important || '']
       ];
@@ -573,7 +592,6 @@
         <button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-act="collapse" title="${esc(collapsed ? t('common.expand') : t('common.collapse'))}">${ic(collapsed ? 'down' : 'x', 14)}</button>
       </div>
       <div class="tp-card__body ${collapsed ? 'tp-hidden' : ''}">
-        ${!hasKey ? `<div class="tp-alert tp-alert--warn">${ic('key', 14)}<span>${esc(t('studio.apiNoKey'))} <a class="tp-link" data-act="options">${esc(t('common.openSettings'))}</a></span></div>` : ''}
         ${lastError ? `<div class="tp-alert tp-alert--danger">${ic('alert', 14)}<span>${esc(lastError)}</span></div>` : ''}
         ${note ? `<div class="tp-alert tp-alert--good">${ic('check', 14)}<span>${esc(note)}</span></div>` : ''}
         ${body}
@@ -594,7 +612,6 @@
       if (act === 'run') start({ file: keys().file });
       else if (act === 'reanalyze') start({ file: keys().file, reanalyze: true });
       else if (act === 'pick') fileInput.click();
-      else if (act === 'url') start({ youtubeUrl: 'https://www.youtube.com/watch?v=' + keys().vid });
       else if (act === 'auto') start({});
       else if (act === 'express' || act === 'regen') start({ mode: 'express' });
       else if (act === 'cancel') cancel();
@@ -665,7 +682,7 @@
 
   /* ---------- Pilote automatique : l'import d'une vidéo lance l'analyse ---------- */
   async function autopilot() {
-    if (!settings.autopilot || job || (settings.aiEngine === 'api' && !settings.geminiKey)) return;
+    if (!settings.autopilot || job) return;
     if (!dialog()) return;
     const k = keys();
     if (!k.file || processed.has(k.key) || !visible(els().title)) return;
@@ -721,7 +738,7 @@
     if (m?.type === 'studio:run') {
       const k = keys();
       const o = m.options || {};
-      if (o.mode !== 'express' && !k.file && !o.youtubeUrl && !(settings.aiEngine !== 'api' && k.vid)) { sendResponse({ ok: false, error: t('studio.noFileCaptured') }); return false; }
+      if (o.mode !== 'express' && !k.file && !o.youtubeUrl && !k.vid) { sendResponse({ ok: false, error: t('studio.noFileCaptured') }); return false; }
       start({ file: o.mode === 'express' ? null : k.file, youtubeUrl: o.youtubeUrl || '', mode: o.mode, reanalyze: !!o.reanalyze, extra: o.extra || {}, runOptions: o.runOptions || {} })
         .then((r) => sendResponse(r.started ? { ok: true, data: r } : { ok: false, error: r.error || t('studio.busy') }));
       return true;

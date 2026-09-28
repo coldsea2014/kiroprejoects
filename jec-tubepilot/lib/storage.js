@@ -21,23 +21,18 @@ export const DEFAULT_PROFILE = {
 };
 
 export const DEFAULTS = {
-  aiEngine: 'web',          // web = gemini.google.com (votre abonnement Gemini Pro) ; api = clé AI Studio
+  // l'IA est Gemini dans votre propre compte (gemini.google.com) : aucune clé API, aucun quota AI Studio
   geminiUrl: 'https://gemini.google.com/app', // 2e compte Google : https://gemini.google.com/u/1/app
+  geminiModel: 'pro',       // pro = TubePilot choisit « Pro » dans Gemini ; keep = garder le modèle sélectionné
   geminiSteps: 2,           // 2 = écoute puis SEO avec les vraies recherches YouTube ; 1 = une seule demande (plus rapide)
   geminiWindow: 'popup',    // popup = petite fenêtre dans le coin ; tab = onglet en arrière-plan
   geminiClose: true,        // fermer Gemini dès que le JSON est récupéré
-  geminiKey: '',
-  ytKey: '',
-  modelMain: '',
-  modelFast: '',
-  models: [],
-  mediaMode: 'auto',        // auto | audio | video
-  deleteFiles: true,        // supprimer le fichier chez Google après l'analyse
+  ytKey: '',                // clé YouTube Data API (facultative : concurrence, tendances)
   transcribeLyrics: true,
   competitorLookup: true,   // recherche YouTube des concurrents (API, ~102 unités par mot-clé comparé)
-  webTrends: true,          // tendances du moment via Gemini + recherche Google
   autopilot: true,          // analyse automatique dès l'import dans Studio
-  autofill: true,           // remplir les champs non modifiés
+  autofill: true,           // écrire le résultat dans Studio à la fin de l'analyse
+  replaceExisting: true,    // remplacer l'ancien titre, l'ancienne description et les anciens tags
   studioCard: true,
   watchCard: true,
   tagSuggest: true,
@@ -46,11 +41,15 @@ export const DEFAULTS = {
   activeProfile: 'default'
 };
 
+// réglages de l'ancien mode « clé API AI Studio », supprimé en 5.1 (la clé est effacée au prochain enregistrement)
+const LEGACY = ['aiEngine', 'geminiKey', 'modelMain', 'modelFast', 'models', 'mediaMode', 'deleteFiles', 'webTrends'];
+
 const area = () => chrome.storage.local;
 
 export async function getSettings() {
   const { settings } = await area().get('settings');
   const s = { ...DEFAULTS, ...(settings || {}) };
+  LEGACY.forEach((k) => delete s[k]);
   if (!Array.isArray(s.profiles) || !s.profiles.length) s.profiles = [DEFAULT_PROFILE];
   s.profiles = s.profiles.map((p) => ({ ...DEFAULT_PROFILE, ...p }));
   return s;

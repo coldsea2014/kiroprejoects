@@ -1,10 +1,10 @@
-// TubePilot — chaîne complète : média → écoute Gemini → recherches YouTube réelles → concurrents → pack SEO
+// TubePilot — chaîne complète : lien public ou audio → écoute par Gemini (votre compte gemini.google.com) → recherches YouTube réelles → concurrents → pack SEO
 import { t } from './lang.js';
-import { getSettings, setSettings, pickProfile, profileLanguages, savePack, getPack } from './storage.js';
-import * as G from './gemini.js';
+import { getSettings, pickProfile, profileLanguages, savePack, getPack } from './storage.js';
+import * as W from './gemini-web.js';
 import { research, competition } from './keywords.js';
-import { youtubeTrends, webTrends } from './trends.js';
-import { analysisPrompt, seoPrompt, hooksPrompt, webAnalysisPrompt, webSeoPrompt, webSinglePrompt, jsonFormat, ANALYSIS_SCHEMA, SEO_SCHEMA, HOOKS_SCHEMA } from './prompts.js';
+import { youtubeTrends } from './trends.js';
+import { hooksPrompt, webAnalysisPrompt, webLinkRetryPrompt, webSeoPrompt, webSinglePrompt, jsonFormat, HOOKS_SCHEMA } from './prompts.js';
 import { isPublic } from './ytapi.js';
 import './format.js';
 import './policy.js';
@@ -15,8 +15,6 @@ const F = globalThis.TPF, S = globalThis.TPSeo;
 
 export const STEPS = [
   { id: 'prepare', label: 'Preparing media' },
-  { id: 'upload', label: 'Secure upload to Gemini' },
-  { id: 'processing', label: 'Google processing' },
   { id: 'gemini', label: 'Opening Gemini' },
   { id: 'analyze', label: 'Gemini listens and watches' },
   { id: 'keywords', label: 'Real YouTube searches' },
@@ -25,19 +23,6 @@ export const STEPS = [
   { id: 'seo', label: 'SEO writing' },
   { id: 'done', label: 'Done' }
 ];
-
-// Choisit automatiquement les modèles si l'utilisateur ne l'a pas fait
-export async function ensureModels(settings) {
-  if (settings.modelMain && settings.modelFast) return settings;
-  if (!settings.geminiKey) return settings;
-  const models = await G.listModels(settings.geminiKey);
-  const r = G.rankModels(models);
-  return setSettings({
-    models: r.all.map((m) => ({ id: m.id, label: m.label })),
-    modelMain: settings.modelMain || r.pro || r.flash || r.all[0]?.id || '',
-    modelFast: settings.modelFast || r.flash || r.lite || r.pro || r.all[0]?.id || ''
-  });
-}
 
 const isMusicProfile = (p) => /music|musique|chanson|song|أغاني|اغاني|موسيقى|beat|rap|chaabi|raï|rai/i.test(`${p?.niche || ''} ${p?.genre || ''}`);
 
@@ -101,68 +86,11 @@ async function gatherKeywords(ctx, analysis, profile, { deep = true, onProgress 
   return { seed: seeds[0] || '', sources: seeds, items: items.slice(0, 90), best: candidates[0] || '', candidates, locale: { ...primary, countries: loc.countries } };
 }
 
-// Tendances YouTube (pays du style) + web, en parallèle ; une erreur n'arrête jamais la génération
-async function gatherTrends({ settings, analysis, profile, kw, useWeb, signal, warn }) {
-  const out = { youtube: null, web: null };
-  const m = analysis?.music || {};
-  const jobs = [];
-  if (settings.ytKey && kw.locale.gl) {
-    jobs.push(youtubeTrends(kw.locale.gl).then((r) => { out.youtube = r; }).catch((e) => warn(t('warn.ytTrends', { msg: e.message }))));
-  }
-  if (useWeb && (m.primary_genre || profile.genre)) {
-    jobs.push(webTrends({
-      key: settings.geminiKey,
-      model: settings.modelFast || settings.modelMain,
-      genre: [m.primary_genre || profile.genre, m.fusion].filter(Boolean).join(' / '),
-      countries: kw.locale.countries,
-      language: kw.locale.hl,
-      terms: (m.genre_search_terms || []).slice(0, 4),
-      signal
-    }).then((r) => { out.web = r; }).catch((e) => warn(t('warn.webTrends', { msg: e.message }))));
-  }
-  await Promise.all(jobs);
-  return out.youtube || out.web ? out : null;
-}
-
-/* ---------- Chaîne complète ---------- */
-// input : { file } (fichier local) | { youtubeUrl } (vidéo publique) | rien (mode express)
-// Analyse par l'API Gemini (clé AI Studio) : envoi du fichier ou du lien, réponse en JSON imposé
-async function apiAnalyze({ file, youtubeUrl, ctx, settings, options, emit, signal, usage }) {
-  const key = settings.geminiKey;
-  const model = options.model || settings.modelMain;
-  let part, media = null, uploaded = null;
-  if (file) {
-    const { prepare } = await import('./media.js');
-    emit('prepare');
-    const prep = await prepare(file, { mode: options.mediaMode || settings.mediaMode, onStep: () => emit('prepare', { detail: t('prog.extracting') }) });
-    ctx.duration = ctx.duration || Math.round(prep.info.duration);
-    if (ctx.isShort === undefined) ctx.isShort = prep.info.height > prep.info.width && prep.info.duration <= 180;
-    if (prep.bpm) ctx.localBpm = prep.bpm.bpm;
-    media = { kind: prep.kind, mime: prep.mime, size: prep.blob.size, duration: prep.info.duration, bpm: prep.bpm, fileName: file.name };
-    emit('upload', { pct: 0, detail: `${prep.kind === 'audio' ? 'Audio' : 'Vidéo'} · ${(prep.blob.size / 1048576).toFixed(1)} Mo` });
-    uploaded = await G.uploadFile({ key, blob: prep.blob, mimeType: prep.mime, displayName: prep.displayName, onProgress: (p) => emit('upload', { pct: p }), signal });
-    emit('processing');
-    uploaded = await G.waitActive(key, uploaded, { signal, onTick: (ms) => emit('processing', { detail: `${Math.round(ms / 1000)} s` }) });
-    part = { fileData: { fileUri: uploaded.uri, mimeType: uploaded.mimeType || prep.mime } };
-  } else {
-    part = { fileData: { fileUri: youtubeUrl } };
-    media = { kind: 'youtube', url: youtubeUrl };
-  }
-  emit('analyze', { detail: model });
-  const { system, text } = analysisPrompt(ctx);
-  const long = (ctx.duration || 0) > 20 * 60 && media.kind !== 'audio';
-  try {
-    const r = await G.generate({
-      key, model, parts: [part, { text }], system, schema: ANALYSIS_SCHEMA, temperature: 0.3,
-      mediaResolution: long ? 'MEDIA_RESOLUTION_LOW' : undefined, signal, timeoutMs: 600000,
-      onRetry: (e) => emit('analyze', { detail: e.message })
-    });
-    if (!r.json || typeof r.json !== 'object') throw new G.GeminiError(t('err.noAnalysis'), { reason: 'json' });
-    usage.analysis = r.usage;
-    return { analysis: r.json, media, model };
-  } finally {
-    if (uploaded && settings.deleteFiles) G.deleteFile(key, uploaded.name);
-  }
+// Tendances YouTube du pays du style (clé YouTube facultative) ; une erreur n'arrête jamais la génération.
+// Les tendances web sont cherchées par Gemini lui-même sur Google, dans la conversation.
+async function gatherTrends({ settings, kw, warn }) {
+  if (!settings.ytKey || !kw.locale.gl) return null;
+  try { return { youtube: await youtubeTrends(kw.locale.gl), web: null }; } catch (e) { warn(t('warn.ytTrends', { msg: e.message })); return null; }
 }
 
 // Audio de la vidéo pour la conversation Gemini (mode abonnement)
@@ -177,13 +105,18 @@ async function chatAudio(file, ctx, emit) {
 }
 
 // Analyse dans gemini.google.com (votre abonnement) : lien si la vidéo est publique, sinon l'audio joint
+const openGemini = (settings) => W.openSession({ url: settings.geminiUrl, mode: settings.geminiWindow, model: settings.geminiModel });
+
+// lien de la vidéo s'il est public (ou non répertorié) : Gemini l'écoute directement
+async function publicLink({ youtubeUrl, raw, file, emit }) {
+  if (youtubeUrl) return youtubeUrl;
+  if (!raw.videoId || file) return '';
+  emit('prepare', { detail: t('prog.checkPublic') });
+  return (await isPublic(raw.videoId)) ? 'https://www.youtube.com/watch?v=' + raw.videoId : '';
+}
+
 async function webAnalyze({ file, youtubeUrl, raw, ctx, settings, emit, signal, warns, sessionRef }) {
-  const W = await import('./gemini-web.js');
-  let link = youtubeUrl || '';
-  if (!link && raw.videoId && !file) {
-    emit('prepare', { detail: t('prog.checkPublic') });
-    if (await isPublic(raw.videoId)) link = 'https://www.youtube.com/watch?v=' + raw.videoId;
-  }
+  let link = await publicLink({ youtubeUrl, raw, file, emit });
   let audio = null;
   if (!link && file) audio = await chatAudio(file, ctx, emit);
   if (!link && !audio) {
@@ -191,10 +124,16 @@ async function webAnalyze({ file, youtubeUrl, raw, ctx, settings, emit, signal, 
     return { analysis: null, media: null };
   }
   emit('gemini', { detail: t('prog.openingGemini') });
-  sessionRef.s = sessionRef.s || await W.openSession({ url: settings.geminiUrl, mode: settings.geminiWindow });
+  sessionRef.s = sessionRef.s || await openGemini(settings);
   const onStatus = (m) => emit('analyze', { detail: m.text || '' });
   emit('analyze', { detail: link ? t('prog.viaLink') : t('prog.viaAudio') });
   let r = await W.ask(sessionRef.s, { prompt: webAnalysisPrompt(ctx, { link }), attachment: audio?.blob, attachName: audio?.name, keys: ['music', 'timeline'], signal, onStatus });
+  if (r.error && link && !file) {
+    // Gemini n'a pas ouvert le lien du premier coup : on le lui redemande dans la même conversation
+    emit('analyze', { detail: t('prog.linkRetry') });
+    r = await W.ask(sessionRef.s, { prompt: webLinkRetryPrompt(link), keys: ['music', 'timeline'], signal, onStatus });
+    if (!r.obj && !r.error) r = { ...r, error: 'no_access' };
+  }
   if (r.error && link && file) {
     // lien refusé par Gemini : l'audio est joint dans la même conversation
     audio = await chatAudio(file, ctx, emit);
@@ -214,12 +153,7 @@ async function webAnalyze({ file, youtubeUrl, raw, ctx, settings, emit, signal, 
 /* ---------- Chaîne complète ---------- */
 // input : { file } (fichier local) | { youtubeUrl } (vidéo publique) | rien (mode express)
 export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options = {}, onProgress, signal } = {}) {
-  let settings = await getSettings();
-  const web = (options.engine || settings.aiEngine) !== 'api';
-  if (!web) {
-    if (!settings.geminiKey) throw new G.GeminiError(t('err.apiNoKey'), { reason: 'key' });
-    settings = await ensureModels(settings);
-  }
+  const settings = await getSettings();
   const profile = (raw.profileId && settings.profiles.find((p) => p.id === raw.profileId)) || pickProfile(settings, raw.channelId);
   const ctx = {
     ...raw,
@@ -228,11 +162,10 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
     titleCount: settings.titleCount,
     transcribeLyrics: options.transcribeLyrics ?? settings.transcribeLyrics
   };
-  const seoModel = web ? t('engine.web') : options.seoModel || settings.modelMain || settings.modelFast;
+  const engineName = t('engine.web');
   const emit = (step, extra = {}) => onProgress?.({ step, ...extra });
   const packKey = raw.packKey || packKeyFor({ videoId: raw.videoId, file, youtubeUrl });
   const aliases = F.uniq([packKey, raw.videoId ? 'vid:' + raw.videoId : '', ...(raw.aliases || [])].filter(Boolean));
-  const usage = {};
   const warns = [];
   const sessionRef = { s: null };
   let analysis = null, media = null, analysisModel = '', succeeded = false;
@@ -246,30 +179,28 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
   try {
     let seoJson = null;
     const listen = !analysis && options.mode !== 'express';
-    if (web && listen && (options.steps || settings.geminiSteps) === 1 && (file || youtubeUrl)) {
+    if (listen && (options.steps || settings.geminiSteps) === 1 && (file || youtubeUrl || raw.videoId)) {
       // une seule demande : écoute + SEO
-      const W = await import('./gemini-web.js');
-      let link = youtubeUrl;
-      if (!link && raw.videoId && !file && await isPublic(raw.videoId)) link = 'https://www.youtube.com/watch?v=' + raw.videoId;
+      const link = await publicLink({ youtubeUrl, raw, file, emit });
       const audio = !link && file ? await chatAudio(file, ctx, emit) : null;
-      emit('keywords');
-      const kw0 = await gatherKeywords(ctx, null, profile, { deep: false });
-      emit('gemini', { detail: t('prog.openingGemini') });
-      sessionRef.s = await W.openSession({ url: settings.geminiUrl, mode: settings.geminiWindow });
-      emit('analyze', { detail: t('prog.single') });
-      const r = await W.ask(sessionRef.s, { prompt: webSinglePrompt(ctx, { link, kwData: kw0 }), attachment: audio?.blob, attachName: audio?.name, keys: ['analysis', 'seo'], signal, onStatus: (m) => emit('analyze', { detail: m.text || '' }) });
-      if (r.error || !r.obj) throw new W.GeminiWebError(r.error ? t('warn.noAccess', { why: r.error }) : t('err.unreadable'), 'json');
-      analysis = r.obj.analysis || null;
-      seoJson = r.obj.seo || null;
-      media = audio ? { kind: 'audio', size: audio.blob.size, duration: audio.info.duration, bpm: audio.bpm, fileName: file?.name || '' } : { kind: 'youtube', url: link };
-      analysisModel = t('engine.web');
-    } else if (listen && (file || youtubeUrl || (web && raw.videoId))) {
-      const r = web
-        ? await webAnalyze({ file, youtubeUrl, raw, ctx, settings, emit, signal, warns, sessionRef })
-        : await apiAnalyze({ file, youtubeUrl, ctx, settings, options, emit, signal, usage });
+      if (link || audio) {
+        emit('keywords');
+        const kw0 = await gatherKeywords(ctx, null, profile, { deep: false });
+        emit('gemini', { detail: t('prog.openingGemini') });
+        sessionRef.s = await openGemini(settings);
+        emit('analyze', { detail: t('prog.single') });
+        const r = await W.ask(sessionRef.s, { prompt: webSinglePrompt(ctx, { link, kwData: kw0 }), attachment: audio?.blob, attachName: audio?.name, keys: ['analysis', 'seo'], signal, onStatus: (m) => emit('analyze', { detail: m.text || '' }) });
+        if (r.error || !r.obj) throw new W.GeminiWebError(r.error ? t('warn.noAccess', { why: r.error }) : t('err.unreadable'), 'json');
+        analysis = r.obj.analysis || null;
+        seoJson = r.obj.seo || null;
+        media = audio ? { kind: 'audio', size: audio.blob.size, duration: audio.info.duration, bpm: audio.bpm, fileName: file?.name || '' } : { kind: 'youtube', url: link };
+        analysisModel = engineName;
+      } else warns.push(t('warn.privateNoFile'));
+    } else if (listen && (file || youtubeUrl || raw.videoId)) {
+      const r = await webAnalyze({ file, youtubeUrl, raw, ctx, settings, emit, signal, warns, sessionRef });
       analysis = r.analysis;
       media = r.media;
-      analysisModel = web ? t('engine.web') : r.model;
+      analysisModel = engineName;
     }
     if (analysis) ctx.duration = ctx.duration || Math.round(analysis.duration_seconds || 0);
     if (analysis?.is_cover) ctx.isCover = true;
@@ -278,12 +209,7 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
     const kw = await gatherKeywords(ctx, analysis, profile, { deep: options.deepKeywords !== false, onProgress: (p) => emit('keywords', { pct: p }) });
 
     emit('trends', { detail: kw.locale.countries.join(', ') });
-    const trends = await gatherTrends({
-      settings, analysis, profile, kw, signal,
-      // en mode abonnement, Gemini cherche lui-même les tendances sur Google dans la conversation
-      useWeb: !web && (options.webTrends ?? settings.webTrends),
-      warn: (w) => { warns.push(w); emit('trends', { warn: w }); }
-    });
+    const trends = await gatherTrends({ settings, kw, warn: (w) => { warns.push(w); emit('trends', { warn: w }); } });
 
     // concurrence : les 2 meilleurs candidats sont comparés, on garde celui qui a le meilleur score
     let comp = null;
@@ -305,22 +231,13 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
     }
 
     if (!seoJson) {
-      emit('seo', { detail: web ? t('prog.sameConversation') : seoModel });
+      emit('seo', { detail: t('prog.sameConversation') });
       const sctx = { ...ctx, keyword: ctx.keyword || '' };
-      if (web) {
-        const W = await import('./gemini-web.js');
-        if (!sessionRef.s) { emit('gemini', { detail: t('prog.openingGemini') }); sessionRef.s = await W.openSession({ url: settings.geminiUrl, mode: settings.geminiWindow }); }
-        const r = await W.ask(sessionRef.s, { prompt: webSeoPrompt(sctx, analysis, kw, comp, trends), keys: ['titles', 'tags'], signal, onStatus: (m) => emit('seo', { detail: m.text || '' }) });
-        if (!r.obj || !Array.isArray(r.obj.titles)) throw new W.GeminiWebError(t('err.noTitles'), 'json');
-        if (r.cut) warns.push(t('warn.seoCut'));
-        seoJson = r.obj;
-      } else {
-        const { system, text } = seoPrompt(sctx, analysis, kw, comp, trends);
-        const r = await G.generate({ key: settings.geminiKey, model: seoModel, parts: [{ text }], system, schema: SEO_SCHEMA, temperature: 0.85, signal, timeoutMs: 300000, onRetry: (e) => emit('seo', { detail: e.message }) });
-        if (!r.json || !Array.isArray(r.json.titles)) throw new G.GeminiError(t('err.noTitles'), { reason: 'json' });
-        usage.seo = r.usage;
-        seoJson = r.json;
-      }
+      if (!sessionRef.s) { emit('gemini', { detail: t('prog.openingGemini') }); sessionRef.s = await openGemini(settings); }
+      const r = await W.ask(sessionRef.s, { prompt: webSeoPrompt(sctx, analysis, kw, comp, trends), keys: ['titles', 'tags'], signal, onStatus: (m) => emit('seo', { detail: m.text || '' }) });
+      if (!r.obj || !Array.isArray(r.obj.titles)) throw new W.GeminiWebError(t('err.noTitles'), 'json');
+      if (r.cut) warns.push(t('warn.seoCut'));
+      seoJson = r.obj;
     }
 
     // tendances trouvées par Gemini lui-même (recherche Google dans la conversation)
@@ -333,8 +250,7 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
       key: packKey, aliases,
       source: { fileName: raw.fileName || file?.name || '', videoId: raw.videoId || '', youtubeUrl, fileSize: file?.size || raw.fileSize || 0 },
       ctx, analysis, seo: seoJson, kw, comp, media, trends: allTrends, warnings: warns,
-      models: { analysis: analysis ? analysisModel : '', seo: seoModel, engine: web ? 'web' : 'api' },
-      usage
+      models: { analysis: analysis ? analysisModel : '', seo: engineName, engine: 'web' }
     });
     await savePack(pack);
     emit('done');
@@ -342,10 +258,7 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
     return pack;
   } finally {
     // succès : Gemini se ferme ; échec après que Gemini vous a été montré : il reste ouvert pour que vous voyiez pourquoi
-    if (sessionRef.s && settings.geminiClose !== false && (succeeded || !sessionRef.s.shown)) {
-      const W = await import('./gemini-web.js');
-      W.closeSession(sessionRef.s);
-    }
+    if (sessionRef.s && settings.geminiClose !== false && (succeeded || !sessionRef.s.shown)) W.closeSession(sessionRef.s);
   }
 }
 
@@ -361,26 +274,18 @@ export async function fromManual({ text, ctx: raw = {} }) {
   return pack;
 }
 
-// Formules d'accroche des titres concurrents + idées originales (modèle rapide)
+// Formules d'accroche des titres concurrents + idées originales (demande envoyée à gemini.google.com)
 export async function analyzeHooks(titles, { topic = '', profileId } = {}) {
-  let settings = await getSettings();
+  const settings = await getSettings();
   const profile = (profileId && settings.profiles.find((p) => p.id === profileId)) || pickProfile(settings);
   const { system, text } = hooksPrompt(titles, { profile, topic });
+  const s = await openGemini(settings);
   let json;
-  if (settings.aiEngine !== 'api') {
-    // mode abonnement : la demande passe par gemini.google.com
-    const W = await import('./gemini-web.js');
-    const s = await W.openSession({ url: settings.geminiUrl, mode: settings.geminiWindow });
-    try {
-      const r = await W.ask(s, { prompt: `${system}\n\n${text}\n\n${jsonFormat(HOOKS_SCHEMA)}`, keys: ['formulas', 'title_ideas'] });
-      json = r.obj;
-    } finally { if (settings.geminiClose !== false) W.closeSession(s); }
-  } else {
-    settings = await ensureModels(settings);
-    const r = await G.generate({ key: settings.geminiKey, model: settings.modelFast || settings.modelMain, parts: [{ text }], system, schema: HOOKS_SCHEMA, temperature: 0.8 });
-    json = r.json;
-  }
-  if (!json) throw new G.GeminiError(t('err.unreadable'));
-  const ideas = (json.title_ideas || []).map((t) => ({ ...t, score: S.scoreTitle(t.text, { keyword: topic }).score }));
+  try {
+    const r = await W.ask(s, { prompt: `${system}\n\n${text}\n\n${jsonFormat(HOOKS_SCHEMA)}`, keys: ['formulas', 'title_ideas'] });
+    json = r.obj;
+  } finally { if (settings.geminiClose !== false) W.closeSession(s); }
+  if (!json) throw new W.GeminiWebError(t('err.unreadable'), 'json');
+  const ideas = (json.title_ideas || []).map((x) => ({ ...x, score: S.scoreTitle(x.text, { keyword: topic }).score }));
   return { formulas: [], power_words: [], recommendations: [], ...json, title_ideas: ideas.sort((a, b) => b.score - a.score) };
 }

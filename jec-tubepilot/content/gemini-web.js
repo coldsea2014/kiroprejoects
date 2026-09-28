@@ -155,6 +155,30 @@
     return new File([u8], rec.name, { type: rec.type || 'audio/wav' });
   }
 
+  /* ---------- Modèle : « Pro » choisi dans le sélecteur de Gemini (une fois par fenêtre) ---------- */
+  const shown = (el) => !!el && el.getClientRects().length > 0 && !el.closest('#tp-gw');
+  const isPro = (s) => /\bpro\b/i.test(flat(s)) && !/\bflash\b/i.test(flat(s));
+  const MODEL_BTN = ['[data-test-id="bard-mode-menu-button"]', '[data-test-id*="mode-switcher"] button', 'bard-mode-switcher button', 'button[aria-label*="mode" i]', 'button[aria-label*="model" i]', 'button[aria-label*="modèle" i]', 'button[aria-label*="النموذج"]'];
+  const MODEL_ITEM = '[role="menuitem"], [role="menuitemradio"], [role="option"], .mat-mdc-menu-item, bard-mode-list-button, [data-test-id*="mode-item"]';
+  function modelButton() {
+    for (const s of MODEL_BTN) { const b = [...document.querySelectorAll(s)].find(shown); if (b) return b; }
+    // repli : bouton court « Flash », « Pro », « 2.5 Flash », « Thinking »… (à côté de la zone de saisie)
+    return [...document.querySelectorAll('button, [role="button"]')].filter(shown).find((b) => /^(\d(\.\d)?\s*)?(flash|pro|thinking|fast|rapide)\b[^]{0,12}$/i.test(flat(b.textContent))) || null;
+  }
+  let modelTried = false;
+  async function pickModel(want) {
+    if (want !== 'pro' || modelTried) return;
+    modelTried = true;
+    try {
+      const btn = modelButton();
+      if (!btn || isPro(btn.textContent)) return;
+      btn.click();
+      const item = await waitFor(() => [...document.querySelectorAll(MODEL_ITEM)].find((el) => shown(el) && isPro(el.textContent) && !el.matches('[aria-disabled="true"], [disabled]')), 4000, 150);
+      if (item) { item.click(); status(t('gw.modelPro')); await sleep(700); }
+      else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+    } catch (e) { /* sélecteur introuvable : le modèle actuel est gardé */ }
+  }
+
   /* ---------- Une demande ---------- */
   let job = null;
 
@@ -172,6 +196,7 @@
         if (!ed) throw new Error(t('gw.notReady'));
       }
       if (me !== job) return;
+      await pickModel(me.model);
       const baseline = responses().length;
       let file = null;
       if (me.attachKey) {

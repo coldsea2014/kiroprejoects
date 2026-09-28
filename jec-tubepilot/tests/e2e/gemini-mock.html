@@ -8,6 +8,12 @@
     <div id="files"></div>
     <rich-textarea><div class="ql-editor" contenteditable="true" role="textbox"></div></rich-textarea>
     <button aria-label="Open upload file menu" id="plus">+</button>
+    <button data-test-id="bard-mode-menu-button" aria-label="Open mode picker" id="mode">Flash ▾</button>
+    <div id="modeMenu" role="menu" hidden>
+      <button role="menuitem">Flash<small> Fast all-round help</small></button>
+      <button role="menuitem">Thinking<small> Solves complex problems</small></button>
+      <button role="menuitem">Pro<small> Thinks longer for advanced math &amp; code</small></button>
+    </div>
     <button class="send-button" aria-label="Send message" disabled>Send</button>
   </div>
 </main>
@@ -15,7 +21,11 @@
   // Comportement minimal de Gemini : fichier collé → aperçu, Envoyer → réponse en JSON (analyse ou SEO) après « réflexion »
   const ANALYSIS = __ANALYSIS__, SEO = __SEO__;
   const ed = document.querySelector('.ql-editor'), send = document.querySelector('.send-button'), chat = document.getElementById('chat');
-  window.__prompts = []; window.__files = [];
+  window.__prompts = []; window.__files = []; window.__model = 'Flash';
+  // sélecteur de modèle (comme Gemini) : Flash par défaut
+  const modeBtn = document.getElementById('mode'), modeMenu = document.getElementById('modeMenu');
+  modeBtn.addEventListener('click', () => { modeMenu.hidden = !modeMenu.hidden; });
+  modeMenu.querySelectorAll('[role=menuitem]').forEach((b) => b.addEventListener('click', () => { window.__model = b.firstChild.textContent.trim(); modeBtn.textContent = window.__model + ' ▾'; modeMenu.hidden = true; }));
   const sync = () => { send.disabled = !ed.innerText.trim(); };
   ed.addEventListener('input', sync);
   ed.addEventListener('paste', (e) => {
@@ -30,7 +40,7 @@
   send.addEventListener('click', () => {
     const prompt = ed.innerText;
     window.__prompts.push(prompt);
-    fetch('/__log', { method: 'POST', body: JSON.stringify({ prompt: prompt.slice(0, 300), seo: prompt.includes('DELIVERABLES'), files: window.__files.slice() }) }).catch(() => {});
+    fetch('/__log', { method: 'POST', body: JSON.stringify({ prompt: prompt.slice(0, 300), seo: prompt.includes('DELIVERABLES'), files: window.__files.slice(), model: window.__model, link: (prompt.match(/watch\?v=[\w-]{11}/) || [''])[0] }) }).catch(() => {});
     ed.innerHTML = ''; sync();
     document.getElementById('files').innerHTML = '';
     const uq = document.createElement('user-query'); uq.textContent = prompt.slice(0, 60); chat.append(uq);

@@ -1,6 +1,6 @@
-// TubePilot — Gemini Pro par votre abonnement (gemini.google.com) : ouvre Gemini dans une petite fenêtre à part,
+// TubePilot — Gemini dans votre propre compte (gemini.google.com) : ouvre Gemini dans une petite fenêtre à part,
+// choisit le modèle Pro, y envoie la consigne (lien ou audio), récupère la réponse, puis referme la fenêtre. Aucune clé API.
 import { t } from './lang.js';
-// y envoie la consigne (et l'audio), récupère la réponse, puis referme la fenêtre. Aucune clé API.
 import './jsonparse.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -21,7 +21,7 @@ async function originTab() {
 }
 
 // mode 'popup' : petite fenêtre dans le coin de l'écran (Gemini reste visible, donc il écrit normalement) ; 'tab' : onglet en arrière-plan
-export async function openSession({ url = DEFAULT_URL, mode = 'popup' } = {}) {
+export async function openSession({ url = DEFAULT_URL, mode = 'popup', model = 'pro' } = {}) {
   const target = /^https:\/\/gemini\.google\.com\//.test(url || '') ? url : DEFAULT_URL;
   const origin = await originTab();
   if (mode === 'popup') {
@@ -29,10 +29,10 @@ export async function openSession({ url = DEFAULT_URL, mode = 'popup' } = {}) {
     const sw = (typeof screen !== 'undefined' && screen.availWidth) || 1400;
     const sh = (typeof screen !== 'undefined' && screen.availHeight) || 900;
     const win = await chrome.windows.create({ url: target, type: 'popup', focused: false, width: W, height: H, left: Math.max(0, sw - W - 12), top: Math.max(0, sh - H - 12) });
-    return { mode, winId: win.id, tabId: win.tabs[0].id, origin, shown: false };
+    return { mode, model, winId: win.id, tabId: win.tabs[0].id, origin, shown: false };
   }
   const tab = await chrome.tabs.create({ url: target, active: false, windowId: origin?.windowId, index: origin ? origin.index + 1 : undefined });
-  return { mode, winId: tab.windowId, tabId: tab.id, origin, shown: false };
+  return { mode, model, winId: tab.windowId, tabId: tab.id, origin, shown: false };
 }
 
 // Gemini a besoin de vous (connexion, fichier à glisser, clic sur Envoyer) : fenêtre agrandie au premier plan
@@ -108,7 +108,7 @@ export async function ask(session, { prompt, attachment = null, attachName = '',
       (async () => {
         for (let i = 0; i < 120 && !settled; i++) {
           try {
-            const r = await chrome.tabs.sendMessage(session.tabId, { type: 'gw:run', job: { id, prompt, attachKey, keys } });
+            const r = await chrome.tabs.sendMessage(session.tabId, { type: 'gw:run', job: { id, prompt, attachKey, keys, model: session.model } });
             if (r?.ok) return;
           } catch (e) { /* page pas encore prête */ }
           await sleep(1000);

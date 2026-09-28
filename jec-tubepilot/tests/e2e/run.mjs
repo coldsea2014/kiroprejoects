@@ -1,4 +1,4 @@
-// Test de bout en bout : Chromium + extension chargée, maquettes de YouTube Studio / YouTube, API Google simulées
+// Test de bout en bout : Chromium + extension chargée, maquettes de YouTube Studio, YouTube et gemini.google.com (votre compte)
 // Usage : node tests/e2e/run.mjs  (nécessite Playwright et Chromium)
 import { chromium } from 'playwright';
 import { mkdtempSync, readFileSync, mkdirSync } from 'node:fs';
@@ -57,8 +57,9 @@ if (!sw) sw = await ctx.waitForEvent('serviceworker');
 const extId = new URL(sw.url()).host;
 log('extension chargée', extId);
 
-let geminiCalls = 0, uploaded = 0;
-await ctx.route('https://studio.youtube.com/**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: studioHtml }));
+// page « Détails » d'une vidéo déjà en ligne : mêmes champs, sans fenêtre d'import
+const studioEditHtml = studioHtml.replace('<ytcp-uploads-dialog class="hidden">', '<div class="edit-page" style="display:block;width:900px;margin:20px auto">').replace('</ytcp-uploads-dialog>', '</div>');
+await ctx.route('https://studio.youtube.com/**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: /\/video\/[\w-]{11}\/edit/.test(r.request().url()) ? studioEditHtml : studioHtml }));
 await ctx.route('https://www.youtube.com/oembed**', (r) => r.fulfill({ status: /privatevideo/.test(r.request().url()) ? 401 : 200, contentType: 'application/json', body: '{}' }));
 await ctx.route('https://www.youtube.com/watch**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: watchHtml }));
 const gemLog = [];
@@ -67,24 +68,6 @@ await ctx.route('https://gemini.google.com/app**', (r) => r.fulfill({ contentTyp
 await ctx.route('https://suggestqueries.google.com/**', (r) => {
   const q = new URL(r.request().url()).searchParams.get('q');
   r.fulfill({ contentType: 'application/json; charset=utf-8', headers: cors, body: JSON.stringify([q, [q, q + ' 2026', q + ' نايضة']]) });
-});
-await ctx.route('https://generativelanguage.googleapis.com/**', async (r) => {
-  const req = r.request();
-  const url = new URL(req.url());
-  if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: { ...cors, 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
-  if (url.pathname === '/upload/v1beta/files') return r.fulfill({ status: 200, headers: { ...cors, 'x-goog-upload-url': 'https://generativelanguage.googleapis.com/upload/session/42' }, body: '{}' });
-  if (url.pathname === '/upload/session/42') { uploaded = req.postDataBuffer()?.length || 0; return r.fulfill({ headers: cors, json: { file: { name: 'files/abc', uri: 'https://generativelanguage.googleapis.com/v1beta/files/abc', mimeType: 'audio/wav', state: 'PROCESSING' } } }); }
-  if (url.pathname === '/v1beta/files/abc') return r.fulfill({ headers: cors, json: req.method() === 'DELETE' ? {} : { name: 'files/abc', uri: 'https://generativelanguage.googleapis.com/v1beta/files/abc', mimeType: 'audio/wav', state: 'ACTIVE' } });
-  if (url.pathname.startsWith('/v1beta/models') && req.method() === 'GET') return r.fulfill({ headers: cors, json: { models: [{ name: 'models/gemini-9-pro', displayName: 'Gemini 9 Pro', supportedGenerationMethods: ['generateContent'] }, { name: 'models/gemini-9-flash', displayName: 'Gemini 9 Flash', supportedGenerationMethods: ['generateContent'] }] } });
-  if (url.pathname.endsWith(':generateContent')) {
-    geminiCalls++;
-    const body = JSON.parse(req.postData());
-    if (body.tools) return r.fulfill({ headers: cors, json: { candidates: [{ content: { parts: [{ text: '{"keywords":["شعبي 2026","نايضة اعراس"],"hashtags":["#شعبي_مغربي","#نايضة"],"title_patterns":["[titre] 🔥 [style]"],"notes":"Le chaabi de mariage monte avant l\'été."}' }] }, groundingMetadata: { groundingChunks: [{ web: { uri: 'https://example.com/tendances', title: 'example.com' } }] }, finishReason: 'STOP' }] } });
-    const media = body.contents[0].parts.some((p) => p.fileData);
-    await new Promise((res) => setTimeout(res, 300));
-    return r.fulfill({ headers: cors, json: { candidates: [{ content: { parts: [{ text: JSON.stringify(media ? ANALYSIS : SEO) }] }, finishReason: 'STOP' }], usageMetadata: { totalTokenCount: 999 } } });
-  }
-  r.fulfill({ status: 404, headers: cors, json: { error: { message: 'mock: ' + url.pathname } } });
 });
 
 
@@ -97,31 +80,69 @@ function watch(page, name) {
 const opt = await ctx.newPage();
 watch(opt, 'options');
 await opt.goto(`chrome-extension://${extId}/options/options.html`);
-await opt.evaluate(() => chrome.storage.local.set({ settings: { aiEngine: 'api', geminiKey: 'AIzaTEST', modelMain: 'gemini-9-pro', modelFast: 'gemini-9-flash', models: [{ id: 'gemini-9-pro', label: 'Gemini 9 Pro' }], competitorLookup: false, autopilot: true, autofill: true, profiles: [{ id: 'default', name: 'Chaîne test', channelId: 'UCabcdefghijklmnopqrstuv', languages: 'ar, fr', country: 'MA', niche: 'Musique marocaine', genre: 'chaabi', aiGenerated: true, signature: 'Instagram : https://instagram.com/test' }], activeProfile: 'default' } }));
+await opt.evaluate(() => chrome.storage.local.set({ settings: { geminiSteps: 2, geminiWindow: 'popup', geminiClose: true, geminiModel: 'pro', competitorLookup: false, autopilot: true, autofill: true, replaceExisting: true, profiles: [{ id: 'default', name: 'Chaîne test', channelId: 'UCabcdefghijklmnopqrstuv', languages: 'ar, fr', country: 'MA', niche: 'Musique marocaine', genre: 'chaabi', aiGenerated: true, signature: 'Instagram : https://instagram.com/test' }], activeProfile: 'default' } }));
 await opt.reload();
 await opt.waitForSelector('.op-profile');
 await opt.screenshot({ path: path.join(shots, '1-options.png'), fullPage: true });
 log('réglages OK — profils :', await opt.locator('.op-profile').count());
 
-// 2. YouTube Studio : import d'un fichier → pilote automatique
+// banc de test : la 1re navigation d'une fenêtre ouverte par l'extension peut échapper à la maquette → rechargée une fois
+const geminiPages = [];
+ctx.on('page', async (p) => {
+  geminiPages.push(p);
+  watch(p, 'gemini');
+  await p.waitForLoadState().catch(() => {});
+  if (p.url().startsWith('chrome-error://')) await p.goto('https://gemini.google.com/app').catch(() => {});
+});
+
+// 2. YouTube Studio : ancienne description + anciens tags, import d'un fichier → pilote automatique → Gemini (compte) → tout est remplacé
 const studio = await ctx.newPage();
 watch(studio, 'studio');
 await studio.goto('https://studio.youtube.com/channel/UCabcdefghijklmnopqrstuv/videos/upload');
+await studio.evaluate(() => {
+  document.querySelector('#description-textarea #textbox').textContent = 'Ancienne description à supprimer';
+  ['vieux tag 1', 'vieux tag 2'].forEach((x) => window.addChip(x));
+});
 await studio.setInputFiles('#picker', { name: 'قُولْهَا-لِيَّا [usesuno.com].wav', mimeType: 'audio/wav', buffer: wav() });
 await studio.waitForSelector('#tp-studio-card', { timeout: 10000 });
 log('carte TubePilot affichée sous le titre');
-await studio.waitForFunction(() => document.querySelector('#title-textarea #textbox').textContent.includes('شعبي'), null, { timeout: 30000 });
-await studio.waitForFunction(() => document.querySelectorAll('ytcp-chip').length >= 3, null, { timeout: 15000 });
+try {
+  await studio.waitForFunction(() => document.querySelector('#title-textarea #textbox').textContent.includes('شعبي'), null, { timeout: 60000 });
+} catch (e) {
+  console.error('DIAG carte :', await studio.evaluate(() => document.querySelector('#tp-studio-card')?.shadowRoot?.textContent?.replace(/\s+/g, ' ').slice(0, 800)));
+  for (const p of ctx.pages()) console.error('DIAG page :', p.url());
+  const g = ctx.pages().find((p) => p.url().startsWith('https://gemini.google.com'));
+  if (g) console.error('DIAG gemini :', await g.evaluate(() => ({ prompts: window.__prompts?.length, files: window.__files, bar: document.getElementById('tp-gw')?.innerText })));
+  console.error('ERREURS jusqu\'ici :', errors.join('\n'));
+  throw e;
+}
+await studio.waitForFunction(() => document.querySelectorAll('ytcp-chip').length >= 3 && ![...document.querySelectorAll('ytcp-chip')].some((c) => c.textContent.includes('vieux tag')), null, { timeout: 15000 });
 const res = await studio.evaluate(() => ({
   title: document.querySelector('#title-textarea #textbox').textContent,
   description: document.querySelector('#description-textarea #textbox').innerText,
-  tags: [...document.querySelectorAll('ytcp-chip')].map((c) => c.textContent.trim())
+  tags: [...document.querySelectorAll('ytcp-chip')].map((c) => (c.querySelector('#chip-text') || c).textContent.trim())
 }));
 log('titre inséré :', res.title);
 log('tags insérés :', res.tags.join(', '));
 if (!/00:12 🔥 اللازمة/.test(res.description)) errors.push('description sans timeline 🔥 : ' + res.description.slice(0, 300));
 if (!res.description.includes('instagram.com/test')) errors.push('signature absente');
-log('envoi à Gemini :', uploaded, 'octets · appels generateContent :', geminiCalls);
+if (res.description.includes('Ancienne description')) errors.push('ancienne description pas supprimée');
+if (res.tags.some((x) => x.includes('vieux tag'))) errors.push('anciens tags pas supprimés : ' + res.tags.join(', '));
+log('ancienne description et anciens tags remplacés :', !res.description.includes('Ancienne description') && !res.tags.some((x) => x.includes('vieux tag')) ? 'oui' : 'NON');
+log('Gemini a reçu :', gemLog.map((x) => (x.seo ? 'demande SEO' : 'demande d\'écoute') + ` [${x.model}]` + (x.files.length ? ` + ${x.files.join(', ')}` : '')).join(' → '));
+if (gemLog.length !== 2 || gemLog[0].seo || !gemLog[1].seo) errors.push('Gemini : 2 demandes attendues (écoute puis SEO)');
+if (!gemLog[0]?.files?.some((f) => /\.wav/.test(f))) errors.push('Gemini : audio non joint');
+if (gemLog.some((x) => x.model !== 'Pro')) errors.push('Gemini : modèle Pro non sélectionné');
+await studio.waitForTimeout(1500);
+if (ctx.pages().some((p) => p.url().startsWith('https://gemini.google.com') && !p.isClosed())) errors.push('fenêtre Gemini pas refermée');
+// onglet « Commentaire » : commentaire à épingler
+await studio.locator('#tp-studio-card').locator('.tp-tab[data-tab=comment]').click();
+await studio.waitForTimeout(200);
+const comment = await studio.evaluate(() => document.querySelector('#tp-studio-card').shadowRoot.querySelector('.tp-pre')?.textContent || '');
+if (!comment.includes('فين غادي تسمعوها')) errors.push('commentaire à épingler absent : ' + comment);
+log('commentaire à épingler :', comment);
+await studio.locator('#tp-studio-card').screenshot({ path: path.join(shots, '2c-studio-comment.png') });
+await studio.locator('#tp-studio-card').locator('.tp-tab[data-tab=titles]').click();
 await studio.waitForTimeout(600);
 await studio.screenshot({ path: path.join(shots, '2-studio.png'), fullPage: true });
 await studio.locator('#tp-studio-card').screenshot({ path: path.join(shots, '2b-studio-card.png') });
@@ -154,6 +175,32 @@ if (kept !== 'Mon titre à moi') errors.push('titre de l\'utilisateur remplacé 
 log('titre tapé par l\'utilisateur conservé :', kept);
 await studio2.close();
 
+// 2d. Vidéo déjà publiée : « Analyser » → lien public → Gemini → ancien titre, ancienne description et anciens tags remplacés
+const edit = await ctx.newPage();
+watch(edit, 'studio-edit');
+await edit.goto('https://studio.youtube.com/video/pubvideo123/edit');
+await edit.evaluate(() => {
+  document.querySelector('#title-textarea #textbox').textContent = 'Ancien titre';
+  document.querySelector('#description-textarea #textbox').textContent = 'Ancienne description de la vidéo';
+  document.getElementById('more').classList.remove('hidden');
+  ['ancien tag A', 'ancien tag B'].forEach((x) => window.addChip(x));
+});
+await edit.waitForFunction(() => document.querySelector('#tp-studio-card')?.shadowRoot?.querySelector('[data-act=auto]'), null, { timeout: 15000 });
+const logBefore = gemLog.length;
+await edit.locator('#tp-studio-card').locator('[data-act=auto]').click();
+await edit.waitForFunction(() => document.querySelector('#title-textarea #textbox').textContent.includes('شعبي'), null, { timeout: 60000 });
+await edit.waitForFunction(() => ![...document.querySelectorAll('ytcp-chip')].some((c) => c.textContent.includes('ancien tag')) && document.querySelectorAll('ytcp-chip').length >= 3, null, { timeout: 15000 });
+await edit.waitForFunction(() => /Save/.test(document.querySelector('#tp-studio-card')?.shadowRoot?.querySelector('.tp-alert--good')?.textContent || ''), null, { timeout: 10000 }).catch(() => {});
+const ed = await edit.evaluate(() => ({ title: document.querySelector('#title-textarea #textbox').textContent, description: document.querySelector('#description-textarea #textbox').innerText, note: document.querySelector('#tp-studio-card').shadowRoot.querySelector('.tp-alert--good')?.textContent || '' }));
+const editLog = gemLog.slice(logBefore);
+if (ed.title === 'Ancien titre' || ed.description.includes('Ancienne description')) errors.push('vidéo publiée : ancien titre / description pas remplacés');
+if (!/00:12 🔥 اللازمة/.test(ed.description)) errors.push('vidéo publiée : timeline absente');
+if (editLog[0]?.link !== 'watch?v=pubvideo123' || editLog[0]?.files?.length) errors.push('vidéo publiée : Gemini n\'a pas reçu le lien public seul : ' + JSON.stringify(editLog[0]));
+if (!/Save/.test(ed.note)) errors.push('vidéo publiée : rappel « Enregistrer » absent : ' + ed.note);
+log('vidéo publiée — Gemini a reçu le lien', editLog[0]?.link, '[' + editLog[0]?.model + '] → titre :', ed.title, '·', ed.note);
+await edit.locator('#tp-studio-card').screenshot({ path: path.join(shots, '2d-studio-published.png') });
+await edit.close();
+
 // 3. Panneau latéral (ouvert comme une page)
 const panel = await ctx.newPage();
 watch(panel, 'panel');
@@ -168,45 +215,6 @@ await panel.click('#kwGo');
 await panel.waitForSelector('#kwResults table', { timeout: 10000 });
 log('mots-clés trouvés :', await panel.locator('#kwResults tr').count() - 1);
 await panel.screenshot({ path: path.join(shots, '4-keywords.png'), fullPage: true });
-
-// 3b. Mode abonnement (gemini.google.com piloté) : import dans Studio → audio joint dans Gemini → 2 demandes → Studio rempli
-await opt.evaluate(async () => { const { settings } = await chrome.storage.local.get('settings'); await chrome.storage.local.set({ settings: { ...settings, aiEngine: 'web', geminiSteps: 2, geminiWindow: 'popup', geminiClose: true } }); });
-const geminiPages = [];
-// banc de test : la 1re navigation d'une fenêtre ouverte par l'extension peut échapper à la maquette → rechargée une fois
-ctx.on('page', async (p) => {
-  geminiPages.push(p);
-  watch(p, 'gemini');
-  await p.waitForLoadState().catch(() => {});
-  if (p.url().startsWith('chrome-error://')) await p.goto('https://gemini.google.com/app').catch(() => {});
-});
-const studio3 = await ctx.newPage();
-watch(studio3, 'studio3');
-await studio3.goto('https://studio.youtube.com/channel/UCabcdefghijklmnopqrstuv/videos/upload');
-const callsBefore = geminiCalls;
-await studio3.setInputFiles('#picker', { name: 'khaliji-web.wav', mimeType: 'audio/wav', buffer: wav() });
-try {
-  await studio3.waitForFunction(() => document.querySelector('#title-textarea #textbox').textContent.includes('شعبي'), null, { timeout: 60000 });
-} catch (e) {
-  console.error('DIAG carte :', await studio3.evaluate(() => document.querySelector('#tp-studio-card')?.shadowRoot?.textContent?.replace(/\s+/g, ' ').slice(0, 800)));
-  for (const p of ctx.pages()) console.error('DIAG page :', p.url());
-  const g = ctx.pages().find((p) => p.url().startsWith('https://gemini.google.com'));
-  if (g) console.error('DIAG gemini :', await g.evaluate(() => ({ prompts: window.__prompts?.length, files: window.__files, bar: document.getElementById('tp-gw')?.innerText, html: document.getElementById('chat')?.innerHTML.slice(0, 300) })));
-  console.error('ERREURS jusqu\'ici :', errors.join('\n'));
-  throw e;
-}
-const gp = geminiPages.find((p) => p.url().startsWith('https://gemini.google.com'));
-const web = await studio3.evaluate(() => ({ title: document.querySelector('#title-textarea #textbox').textContent, description: document.querySelector('#description-textarea #textbox').innerText }));
-log('mode abonnement — titre inséré :', web.title);
-if (!/00:12 🔥 اللازمة/.test(web.description)) errors.push('mode abonnement : timeline absente');
-if (geminiCalls !== callsBefore) errors.push('mode abonnement : l\'API Gemini a été appelée');
-await studio3.waitForTimeout(1500);
-const stillOpen = ctx.pages().filter((p) => p.url().startsWith('https://gemini.google.com') && !p.isClosed()).length;
-log('fenêtre Gemini refermée :', stillOpen === 0 ? 'oui' : 'NON');
-if (stillOpen) errors.push('fenêtre Gemini pas refermée');
-log('Gemini a reçu :', gemLog.map((x) => (x.seo ? 'demande SEO' : 'demande d\'écoute') + (x.files.length ? ` + ${x.files.join(', ')}` : '')).join(' → '));
-if (gemLog.length !== 2 || gemLog[0].seo || !gemLog[1].seo) errors.push('Gemini : 2 demandes attendues (écoute puis SEO)');
-if (!gemLog[0]?.files?.some((f) => /khaliji-web\.wav/.test(f))) errors.push('Gemini : audio non joint');
-await studio3.screenshot({ path: path.join(shots, '6-studio-web.png'), fullPage: true });
 
 // 4. Page vidéo YouTube
 const yt = await ctx.newPage();

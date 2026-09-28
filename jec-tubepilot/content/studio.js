@@ -128,18 +128,82 @@
   }
 
   /* ---------- Écriture dans les champs ---------- */
-  function setEditable(el, value) {
-    el.focus();
+  const flatText = (s) => String(s || '').replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim();
+  function selectIn(el, collapseToEnd = false) {
     const range = document.createRange();
     range.selectNodeContents(el);
+    if (collapseToEnd) range.collapse(false);
     const sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
-    const ok = document.execCommand('insertText', false, value);
-    if (!ok || text(el) !== String(value).trim()) el.textContent = value;
-    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // Petite frappe réelle à la fin du champ (espace puis retour arrière) : Studio met à jour sa valeur interne
+  // et recalcule la hauteur du champ et de la page (sinon le texte peut déborder sur les blocs suivants)
+  function nudge(el) {
+    try {
+      el.focus();
+      selectIn(el, true);
+      if (document.execCommand('insertText', false, ' ')) document.execCommand('delete', false);
+    } catch (e) { /* champ non modifiable */ }
+  }
+
+  // Écrit un texte dans un champ de Studio comme une vraie saisie (Studio garde sa mise en page et sa valeur)
+  function setEditable(el, value) {
+    value = String(value ?? '');
+    const want = flatText(value);
+    const good = () => { const got = flatText(text(el)); return got === want || (got.length >= want.length * 0.97 && got.startsWith(want.slice(0, 30))); };
+    el.focus();
+    selectIn(el);
+    let ok = false;
+    try { ok = document.execCommand('insertText', false, value); } catch (e) { ok = false; }
+    if (!ok || !good()) {
+      // 2e essai : un collage, que Studio traite comme une saisie
+      selectIn(el);
+      try {
+        const dt = new DataTransfer();
+        dt.setData('text/plain', value);
+        el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true, composed: true }));
+      } catch (e) { /* collage refusé */ }
+    }
+    if (!good()) {
+      // dernier recours : texte écrit directement, puis signalé à Studio
+      el.textContent = value;
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertReplacementText', data: value }));
+    }
+    nudge(el);
     el.dispatchEvent(new Event('change', { bubbles: true }));
     el.blur();
+  }
+
+  /* ---------- Mise en page de Studio : jamais de texte qui déborde sur les blocs suivants ---------- */
+  // vrai si le champ description dépasse sur le bloc qui le suit (hauteur calculée par Studio pas mise à jour)
+  function overlapping() {
+    const d = els().description;
+    if (!visible(d)) return false;
+    const bottom = d.getBoundingClientRect().bottom;
+    let a = d;
+    for (let depth = 0; a && a !== document.body && depth < 10; depth++, a = a.parentElement) {
+      let n = a.nextElementSibling;
+      while (n && (n === card?.host || !visible(n) || getComputedStyle(n).position === 'fixed' || getComputedStyle(n).position === 'absolute')) n = n.nextElementSibling;
+      if (n) return n.getBoundingClientRect().top < bottom - 4;
+    }
+    return false;
+  }
+
+  let floating = false;
+  async function healLayout({ touchField = true } = {}) {
+    if (!overlapping()) return;
+    const d = els().description;
+    // après une écriture de TubePilot : petite frappe réelle dans la description pour que Studio se remette à jour
+    if (touchField) { nudge(d); d.blur(); }
+    window.dispatchEvent(new Event('resize'));
+    await sleep(350);
+    if (!overlapping() || floating || !card) return;
+    // toujours cassé : la carte sort de la page de Studio et devient un panneau flottant
+    floating = true;
+    placeCard();
+    window.dispatchEvent(new Event('resize'));
   }
 
   async function ensureTagsInput() {
@@ -229,6 +293,7 @@
       await setTags(tags, replaceTags);
       done.push(t('field.tags'));
     }
+    await healLayout();
     schedule();
     return done;
   }
@@ -386,6 +451,7 @@
       filled.length && !dialog() ? t('studio.saveHint') : ''
     ].filter(Boolean).join(' ');
     render();
+    await healLayout();
   }
 
   /* ---------- Carte entre le bloc Titre et le bloc Description ---------- */
@@ -393,17 +459,40 @@
   const I = globalThis.TPIcons;
   const ic = (n, s) => I.icon(n, s);
 
-  // Le bloc qui contient le titre, au niveau du conteneur commun avec la description :
-  // la carte est insérée ENTRE les deux (jamais dans le cadre du titre, qui a une hauteur fixe dans la page Détails)
+  // Emplacement de la carte : en haut de l'éditeur de Studio, AU-DESSUS du bloc titre + description
+  // (jamais à l'intérieur d'un bloc dont Studio calcule la hauteur, sinon la description déborde sur la suite de la page)
   function anchorFor(e) {
     const t = e.title;
     if (!t) return null;
+    const editor = t.closest('ytcp-video-metadata-editor');
+    if (editor && editor.firstElementChild) return { el: editor, where: 'afterbegin' };
     if (e.description) {
       let a = t, depth = 0;
       while (a.parentElement && !a.parentElement.contains(e.description) && depth < 14) { a = a.parentElement; depth++; }
-      if (a.parentElement && a.parentElement.contains(e.description) && a !== document.body) return a;
+      if (a.parentElement && a.parentElement.contains(e.description) && a !== document.body) return { el: a, where: 'beforebegin' };
     }
-    return t.closest('ytcp-video-title') || t.closest('ytcp-form-input-container') || t.closest('#title-textarea') || t.parentElement;
+    const block = t.closest('ytcp-video-title') || t.closest('ytcp-form-input-container') || t.closest('#title-textarea') || t.parentElement;
+    return block ? { el: block, where: 'beforebegin' } : null;
+  }
+
+  const INLINE_CSS = 'display:block;width:100%;flex:0 0 auto;margin:4px 0 16px;position:relative;z-index:1;clear:both';
+  const FLOAT_CSS = 'display:block;position:fixed;right:16px;bottom:16px;width:min(460px,calc(100vw - 32px));max-height:78vh;overflow:auto;z-index:2200;border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,.28)';
+  function placeCard(anchor = anchorFor(els())) {
+    if (!card) return;
+    if (floating) {
+      card.host.style.cssText = FLOAT_CSS;
+      if (card.host.parentElement !== document.documentElement) document.documentElement.appendChild(card.host);
+      return;
+    }
+    if (!anchor) return;
+    card.host.style.cssText = INLINE_CSS;
+    const placed = anchor.where === 'afterbegin' ? anchor.el.firstElementChild === card.host : anchor.el.previousElementSibling === card.host;
+    if (!card.host.isConnected || !placed) {
+      anchor.el.insertAdjacentElement(anchor.where, card.host);
+      // la carte a changé la hauteur de la page : Studio doit l'avoir pris en compte, sinon panneau flottant
+      clearTimeout(placeCard.h);
+      placeCard.h = setTimeout(() => healLayout({ touchField: false }), 900);
+    }
   }
 
   function ensureCard() {
@@ -413,7 +502,6 @@
     if (!anchor) return false;
     if (!card) {
       card = UI.shadow('tp-studio-card');
-      card.host.style.cssText = 'display:block;width:100%;flex:0 0 100%;margin:12px 0 18px;position:relative;z-index:1;clear:both';
       card.body.addEventListener('click', onClick);
       fileInput = document.createElement('input');
       fileInput.type = 'file';
@@ -423,7 +511,7 @@
       card.root.appendChild(fileInput);
       render();
     }
-    if (!card.host.isConnected || card.host.previousElementSibling !== anchor) anchor.insertAdjacentElement('afterend', card.host);
+    placeCard(anchor);
     card.host.classList.toggle('dark', UI.isDark());
     card.body.dir = TPI18n.dir();
     return true;

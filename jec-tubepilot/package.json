@@ -1,6 +1,6 @@
 {
   "name": "tubepilot",
-  "version": "5.1.0",
+  "version": "5.2.0",
   "private": true,
   "description": "Chrome extension: AI YouTube SEO for music channels — Gemini listens to the video, then writes titles, a 00:00 timeline, tags and hashtags and fills YouTube Studio.",
   "type": "module",

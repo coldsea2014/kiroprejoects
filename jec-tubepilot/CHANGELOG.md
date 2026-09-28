@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.2.0 — 2026-09
+- **Fix:** on the Studio “Video details” page, the inserted description could overflow onto the next sections (altered content, chapters, thumbnail…). Fields are now written like real typing (no direct DOM write), Studio recalculates its layout, and TubePilot checks after every insertion that nothing overlaps (it repairs the layout, or turns its card into a floating panel).
+- The TubePilot card now sits at the top of the Studio editor, above the title, outside the blocks whose height Studio manages.
+- Tests: the mock Studio manages block heights like the real one; the e2e test reproduces the overflow with 5.1 and checks it is gone.
+
 ## 5.1.0 — 2026-09
 - **Gemini account only**: the Gemini API / AI Studio key mode is removed (no key, no API quota). Old key and model settings are deleted from storage.
 - TubePilot selects the **Pro** model in Gemini’s model menu before sending (setting “Gemini model”).

@@ -146,16 +146,17 @@ await studio.locator('#tp-studio-card').locator('.tp-tab[data-tab=titles]').clic
 await studio.waitForTimeout(600);
 await studio.screenshot({ path: path.join(shots, '2-studio.png'), fullPage: true });
 await studio.locator('#tp-studio-card').screenshot({ path: path.join(shots, '2b-studio-card.png') });
-// la carte est entre le titre et la description, sans les chevaucher (bug de la v4.2)
+// la carte est au-dessus du titre, et la description remplie ne déborde jamais sur la suite de la page (bugs v4.2 et v5.1)
 const geo = await studio.evaluate(() => {
   const r = (el) => el.getBoundingClientRect();
   const card = r(document.querySelector('#tp-studio-card'));
   const title = r(document.querySelector('ytcp-video-title'));
-  const desc = r(document.querySelector('#description-textarea'));
-  return { cardTop: card.top, cardBottom: card.bottom, titleBottom: title.bottom, descTop: desc.top, h: card.height };
+  const desc = r(document.querySelector('#description-textarea #textbox'));
+  const next = r(document.querySelector('#toggle-button'));
+  return { cardBottom: Math.round(card.bottom), titleTop: Math.round(title.top), descBottom: Math.round(desc.bottom), nextTop: Math.round(next.top), h: Math.round(card.height), floating: getComputedStyle(document.querySelector('#tp-studio-card')).position === 'fixed' };
 });
-if (!(geo.h > 80 && geo.cardTop >= geo.titleBottom - 1 && geo.cardBottom <= geo.descTop + 1)) errors.push('carte Studio mal placée : ' + JSON.stringify(geo));
-log('carte placée entre titre et description :', JSON.stringify(geo));
+if (!(geo.h > 80 && (geo.floating || geo.cardBottom <= geo.titleTop + 1) && geo.descBottom <= geo.nextTop + 1)) errors.push('mise en page Studio cassée : ' + JSON.stringify(geo));
+log('mise en page : carte au-dessus du titre, description sans débordement :', JSON.stringify(geo));
 
 // clic sur un autre titre proposé
 await studio.locator('#tp-studio-card').locator('.tp-item[data-act=title]').nth(1).click();
@@ -193,12 +194,15 @@ await edit.waitForFunction(() => ![...document.querySelectorAll('ytcp-chip')].so
 await edit.waitForFunction(() => /Save/.test(document.querySelector('#tp-studio-card')?.shadowRoot?.querySelector('.tp-alert--good')?.textContent || ''), null, { timeout: 10000 }).catch(() => {});
 const ed = await edit.evaluate(() => ({ title: document.querySelector('#title-textarea #textbox').textContent, description: document.querySelector('#description-textarea #textbox').innerText, note: document.querySelector('#tp-studio-card').shadowRoot.querySelector('.tp-alert--good')?.textContent || '' }));
 const editLog = gemLog.slice(logBefore);
+const edGeo = await edit.evaluate(() => ({ descBottom: Math.round(document.querySelector('#description-textarea #textbox').getBoundingClientRect().bottom), nextTop: Math.round(document.querySelector('#toggle-button').getBoundingClientRect().top) }));
+if (edGeo.descBottom > edGeo.nextTop + 1) errors.push('vidéo publiée : la description déborde sur la suite de la page ' + JSON.stringify(edGeo));
 if (ed.title === 'Ancien titre' || ed.description.includes('Ancienne description')) errors.push('vidéo publiée : ancien titre / description pas remplacés');
 if (!/00:12 🔥 اللازمة/.test(ed.description)) errors.push('vidéo publiée : timeline absente');
 if (editLog[0]?.link !== 'watch?v=pubvideo123' || editLog[0]?.files?.length) errors.push('vidéo publiée : Gemini n\'a pas reçu le lien public seul : ' + JSON.stringify(editLog[0]));
 if (!/Save/.test(ed.note)) errors.push('vidéo publiée : rappel « Enregistrer » absent : ' + ed.note);
 log('vidéo publiée — Gemini a reçu le lien', editLog[0]?.link, '[' + editLog[0]?.model + '] → titre :', ed.title, '·', ed.note);
 await edit.locator('#tp-studio-card').screenshot({ path: path.join(shots, '2d-studio-published.png') });
+await edit.screenshot({ path: path.join(shots, '2e-studio-published-page.png'), fullPage: true });
 await edit.close();
 
 // 3. Panneau latéral (ouvert comme une page)

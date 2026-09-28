@@ -20,15 +20,16 @@ async function originTab() {
   return t || null;
 }
 
-// mode 'popup' : petite fenêtre dans le coin de l'écran (Gemini reste visible, donc il écrit normalement) ; 'tab' : onglet en arrière-plan
-export async function openSession({ url = DEFAULT_URL, mode = 'popup', model = 'pro' } = {}) {
+// mode 'popup' : petite fenêtre au premier plan dans le coin de l'écran (une fenêtre cachée derrière Studio est fortement
+// ralentie par Chrome, surtout sous Windows) ; 'tab' : onglet en arrière-plan
+export async function openSession({ url = DEFAULT_URL, mode = 'popup', model = 'fast' } = {}) {
   const target = /^https:\/\/gemini\.google\.com\//.test(url || '') ? url : DEFAULT_URL;
   const origin = await originTab();
   if (mode === 'popup') {
     const W = 460, H = 720;
     const sw = (typeof screen !== 'undefined' && screen.availWidth) || 1400;
     const sh = (typeof screen !== 'undefined' && screen.availHeight) || 900;
-    const win = await chrome.windows.create({ url: target, type: 'popup', focused: false, width: W, height: H, left: Math.max(0, sw - W - 12), top: Math.max(0, sh - H - 12) });
+    const win = await chrome.windows.create({ url: target, type: 'popup', focused: true, width: W, height: H, left: Math.max(0, sw - W - 12), top: Math.max(0, sh - H - 12) });
     return { mode, model, winId: win.id, tabId: win.tabs[0].id, origin, shown: false };
   }
   const tab = await chrome.tabs.create({ url: target, active: false, windowId: origin?.windowId, index: origin ? origin.index + 1 : undefined });
@@ -51,8 +52,8 @@ export async function closeSession(s) {
     if (s.mode === 'popup') await chrome.windows.remove(s.winId);
     else await chrome.tabs.remove(s.tabId);
   } catch (e) { /* déjà fermée */ }
-  // retour à YouTube Studio si Gemini a dû être affiché
-  if (s.shown && s.origin) {
+  // retour à YouTube Studio (la petite fenêtre Gemini était au premier plan)
+  if ((s.shown || s.mode === 'popup') && s.origin) {
     chrome.tabs.update(s.origin.id, { active: true }).catch(() => {});
     chrome.windows.update(s.origin.windowId, { focused: true }).catch(() => {});
   }

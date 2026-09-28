@@ -12,7 +12,7 @@ Manifest V3 Chrome extension. **Gemini — in the user’s own Google account, n
 ## Features
 | Area | What it does |
 |---|---|
-| Listening | Gemini in your own account (gemini.google.com, Pro model selected automatically, no API key) listens to the public link or to the uploaded file (audio extracted locally, 16 kHz WAV); expert master prompt; world-music guide (Gulf, Iraq, Yemen, Levant, Egypt, Maghreb, Africa, urban, jazz, RnB, fusions); local BPM measurement |
+| Listening | Gemini in your own account (gemini.google.com, Fast or Pro model selected automatically, no API key) listens to the public link or to the uploaded file (audio extracted locally, 16 kHz WAV); expert master prompt; world-music guide (Gulf, Iraq, Yemen, Levant, Egypt, Maghreb, Africa, urban, jazz, RnB, fusions); local BPM measurement |
 | Keywords | Real YouTube suggestions A→Z in the style’s country/language; **Google Keyword Planner CSV import** (real monthly volumes); competition score (YouTube Data API); Google Trends links; tag basket |
 | SEO pack | 6–12 scored titles with emojis (hooks), 3 A/B titles, description with chapters and 🔥 best moments, tags ≤ 500 chars, 3–5 hashtags, pinned comment, thumbnail texts, Short |
 | Studio | Card above the title (outside Studio’s managed blocks, overflow check after each insertion), autopilot on upload, replaces the old title / description / tags (option), comment to pin, tag suggestions while typing, watch-page analysis card |

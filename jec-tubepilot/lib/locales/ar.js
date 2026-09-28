@@ -555,9 +555,6 @@
   'op.engine.noKey': 'بدون مفتاح API · بدون حصة AI Studio',
   'op.engine.webDesc': 'يفتح TubePilot نافذة Gemini صغيرة بحسابك، ويرسل الطلب الاحترافي مع الرابط العام للفيديو (أو صوت ملفك)، ثم يقرأ الإجابة ويغلق النافذة.',
   'op.engine.model': 'نموذج Gemini',
-  'op.engine.modelPro': 'Pro (موصى به)',
-  'op.engine.modelKeep': 'الإبقاء على النموذج المختار في Gemini',
-  'op.engine.modelHelp': 'قبل الإرسال، يختار TubePilot «Pro» في قائمة نماذج Gemini لأنه يستمع بشكل أفضل. يُحتسب ضمن حدود اشتراكك في Gemini وليس ضمن حصة API.',
   'op.studio.autofill': 'كتابة النتيجة في Studio تلقائيًا',
   'op.studio.autofillHelp': 'عند انتهاء التحليل، يُدرج أفضل عنوان والوصف مع التوقيتات والعلامات.',
   'op.studio.replace': 'استبدال العنوان والوصف والعلامات القديمة',
@@ -573,5 +570,12 @@
   'studio.pinHint': 'انشره كتعليق تحت الفيديو ثم ⋮ › تثبيت. السؤال المثبت يزيد الردود والتفاعل.',
   'tab.comment': 'تعليق',
   'gw.modelPro': 'تم اختيار Gemini Pro.',
-  'prog.linkRetry': 'لم يفتح Gemini الرابط: طلب جديد…'
+  'prog.linkRetry': 'لم يفتح Gemini الرابط: طلب جديد…',
+
+  // 5.3 — fast / Pro model
+  'op.engine.modelFast': 'سريع (موصى به) — إجابات خلال ثوانٍ',
+  'op.engine.modelPro': 'Pro — استماع أدق، أبطأ',
+  'op.engine.modelKeep': 'الإبقاء على النموذج المختار في Gemini',
+  'op.engine.modelHelp': 'يختار TubePilot هذا النموذج في قائمة Gemini قبل الإرسال. السريع يجيب خلال ثوانٍ، وPro يفكر مدة أطول (دقيقة أو أكثر) لتحليل أدق. يُحتسب ضمن حدود اشتراكك في Gemini وليس ضمن حصة API.',
+  'gw.modelFast': 'تم اختيار نموذج Gemini السريع.'
 };

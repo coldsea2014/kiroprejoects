@@ -10,7 +10,7 @@ TubePilot is a complete, production-ready Manifest V3 Chrome extension that brin
 
 ### Features
 - Gemini listening analysis tuned for world music (Gulf, Iraq, Yemen, Levant, Egypt, Maghreb, Africa, urban, jazz, RnB, fusions)
-- Works with the user’s own Gemini account (gemini.google.com): no API key, no AI Studio quota; Pro model selected automatically; expert master prompt (YouTube strategist, ethnomusicologist, SEO specialist, hook copywriter); link retry; JSON repair
+- Works with the user’s own Gemini account (gemini.google.com): no API key, no AI Studio quota; Fast or Pro model selected automatically; expert master prompt (YouTube strategist, ethnomusicologist, SEO specialist, hook copywriter); link retry; JSON repair
 - Keyword research from real YouTube suggestions in the style’s country and language
 - Google Keyword Planner CSV import (UTF-16/UTF-8, 7 languages of headers, volume ranges) blended into the ranking and the AI brief
 - Competition score (YouTube Data API), competitor tracking with outlier videos, trends by country

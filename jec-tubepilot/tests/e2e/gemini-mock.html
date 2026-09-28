@@ -47,12 +47,15 @@
     const stop = document.createElement('button'); stop.setAttribute('aria-label', 'Stop response'); document.querySelector('.input-area').append(stop);
     const mr = document.createElement('model-response'); const mc = document.createElement('message-content'); mr.append(mc); chat.append(mr);
     const json = prompt.includes('DELIVERABLES') ? SEO : ANALYSIS;
-    setTimeout(() => { mc.innerHTML = '<model-thoughts>{"brouillon": true}</model-thoughts><p>Voici le JSON :</p>'; }, 300);
+    // comme un modèle qui « réfléchit » : le raisonnement avance avant la réponse
+    mc.innerHTML = '<model-thoughts>Réflexion</model-thoughts>';
+    let dots = 0; const th = setInterval(() => { const m = mc.querySelector('model-thoughts'); if (m) m.textContent = 'Réflexion' + '.'.repeat(++dots % 6); }, 250);
+    setTimeout(() => { clearInterval(th); mc.innerHTML = '<model-thoughts>{"brouillon": true}</model-thoughts><p>Voici le JSON :</p>'; }, 1200);
     setTimeout(() => {
       const pre = document.createElement('pre'); const code = document.createElement('code');
       code.textContent = JSON.stringify(json, null, 1); pre.append(code); mc.append(pre);
       stop.remove();
-    }, 1500);
+    }, 2000);
   });
 </script>
 </body></html>

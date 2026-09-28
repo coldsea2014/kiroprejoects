@@ -11,7 +11,7 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const ic = (n, s = 15) => I.icon(n, s);
 
-const VALUES = ['ytKey', 'titleCount', 'geminiUrl', 'geminiModel', 'geminiSteps', 'geminiWindow'];
+const VALUES = ['ytKey', 'titleCount', 'geminiUrl', 'geminiMode', 'geminiSteps', 'geminiWindow'];
 const CHECKS = ['geminiClose', 'transcribeLyrics', 'competitorLookup', 'autopilot', 'autofill', 'replaceExisting', 'studioCard', 'tagSuggest', 'watchCard'];
 const PROFILE_FIELDS = ['name', 'channelId', 'handle', 'artistName', 'niche', 'genre', 'languages', 'country', 'audience', 'tone'];
 
@@ -114,7 +114,7 @@ async function renderKp() {
   renderKp();
 
   $('#uiLang').addEventListener('change', async (e) => { settings = await setSettings({ uiLang: e.target.value }); location.reload(); });
-  ['titleCount', 'geminiModel', 'geminiSteps', 'geminiWindow'].forEach((k) => $('#' + k).addEventListener('change', (e) => saveSoon({ [k]: k === 'titleCount' || k === 'geminiSteps' ? +e.target.value : e.target.value })));
+  ['titleCount', 'geminiMode', 'geminiSteps', 'geminiWindow'].forEach((k) => $('#' + k).addEventListener('change', (e) => saveSoon({ [k]: k === 'titleCount' || k === 'geminiSteps' ? +e.target.value : e.target.value })));
   $('#geminiUrl').addEventListener('change', (e) => {
     const v = e.target.value.trim();
     if (v && !/^https:\/\/gemini\.google\.com\//.test(v)) { e.target.value = settings.geminiUrl; return; }

@@ -44,13 +44,14 @@ test('ancien mode clé API : réglages supprimés, Gemini du compte seulement', 
   const s = await getSettings();
   assert.equal(s.aiEngine, undefined);
   assert.equal(s.geminiKey, undefined);
-  assert.equal(s.geminiModel, 'pro');
+  assert.equal(s.geminiMode, 'fast', 'modèle rapide par défaut');
+  assert.equal(s.geminiModel, undefined);
   assert.equal(s.replaceExisting, true);
   await setSettings({});
   assert.equal((await chrome.storage.local.get('settings')).settings.geminiKey, undefined, 'clé AI Studio effacée');
 });
 
-test('chaîne complète avec un lien YouTube public (compte Gemini, modèle Pro, même conversation)', async () => {
+test('chaîne complète avec un lien YouTube public (compte Gemini, modèle choisi, même conversation, recherches pendant l\'écoute)', async () => {
   const G = store.__gemini;
   const jobs = [];
   G.setResponder(async (prompt, job) => { jobs.push(job); return answer(prompt); });
@@ -59,7 +60,7 @@ test('chaîne complète avec un lien YouTube public (compte Gemini, modèle Pro,
   const pack = await run({ youtubeUrl: 'https://www.youtube.com/watch?v=abcdefghijk', ctx: { videoId: 'abcdefghijk' }, onProgress: (p) => steps.push(p.step) });
   assert.deepEqual([...new Set(steps)], ['gemini', 'analyze', 'keywords', 'trends', 'seo', 'done']);
   assert.equal(jobs.length, 2);
-  assert.ok(jobs.every((j) => j.model === 'pro'), 'Gemini Pro demandé');
+  assert.ok(jobs.every((j) => j.model === 'fast'), 'modèle rapide demandé');
   assert.match(jobs[0].prompt, /TUBEPILOT MASTER/);
   assert.match(jobs[0].prompt, /WORLD STYLES & RHYTHMS GUIDE/);
   assert.match(jobs[0].prompt, /VIDEO TO ANALYZE \(public YouTube video\): https:\/\/www\.youtube\.com\/watch\?v=abcdefghijk/);

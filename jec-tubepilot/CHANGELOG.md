@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.3.0 — 2026-09
+- **Fix:** on the real Studio “Video details” page the editor is a row (form + video preview); the card was inserted into that row and pushed the form to the right (horizontal scroll). The card now goes at the top of the form column, and every placement is checked (title position, horizontal scroll, card width); otherwise the next spot is tried, then a floating panel.
+- **Faster listening:** the Gemini window opens in the foreground (Chrome throttles hidden windows, especially on Windows) and TubePilot returns to Studio at the end; Gemini “thinking” counts as progress, so TubePilot no longer asks for help after 60 s of silent reasoning; keyword research starts while Gemini listens.
+- Gemini model setting: **Fast** (default, answers in seconds), **Pro** (finer, slower) or keep the model selected in Gemini.
+- Keyword research no longer uses the old video title as a seed (no tags built from the old title); early results are kept only if they match what Gemini heard.
+- Tests: mock Studio uses the real row layout; the e2e test reproduces the 5.2 shift and checks it is gone.
+
 ## 5.2.0 — 2026-09
 - **Fix:** on the Studio “Video details” page, the inserted description could overflow onto the next sections (altered content, chapters, thumbnail…). Fields are now written like real typing (no direct DOM write), Studio recalculates its layout, and TubePilot checks after every insertion that nothing overlaps (it repairs the layout, or turns its card into a floating panel).
 - The TubePilot card now sits at the top of the Studio editor, above the title, outside the blocks whose height Studio manages.

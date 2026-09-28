@@ -42,7 +42,7 @@ TubePilot is the SEO co-pilot for music channels on YouTube. Instead of guessing
 Checks titles, descriptions, tags, hashtags and chapters against YouTube policies (misleading metadata, keyword stuffing, limits) before you publish.
 
 💎 YOUR OWN GEMINI ACCOUNT
-• Uses Gemini in your Google account (gemini.google.com), with the Pro model selected automatically
+• Uses Gemini in your Google account (gemini.google.com); Fast model by default (answers in seconds) or Pro for a finer analysis
 • No API key, no AI Studio quota, no per-use cost
 • An expert master prompt: YouTube strategist + ethnomusicologist + SEO specialist + hook copywriter
 
@@ -59,7 +59,7 @@ TubePilot est le copilote SEO des chaînes musicales sur YouTube. Gemini **écou
 • 6 à 12 titres notés, titres A/B, description avec chapitres valides, tags ≤ 500 caractères, 3 à 5 hashtags
 • Carte dans YouTube Studio, pilote automatique à la mise en ligne, suggestions de tags
 • Contrôle des règles YouTube avant publication
-• Votre propre compte Gemini, modèle Pro choisi automatiquement — sans clé API, sans quota AI Studio
+• Votre propre compte Gemini, modèle Rapide (ou Pro) choisi automatiquement — sans clé API, sans quota AI Studio
 • Remplace l’ancienne description et les anciens tags, prépare le commentaire à épingler
 • Interface anglais / français / arabe, thème clair et sombre — aucune donnée sur nos serveurs
 

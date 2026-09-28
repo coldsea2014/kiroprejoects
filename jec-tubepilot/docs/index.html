@@ -34,7 +34,7 @@
 </head>
 <body>
 <header><div class="in">
-  <h1>TubePilot 5.1</h1>
+  <h1>TubePilot 5.3</h1>
   <p>AI SEO for music videos on YouTube — Gemini listens to your song, then writes titles, a 00:00 timeline of the best moments, tags and hashtags, and fills YouTube Studio for you.</p>
   <nav><a href="#install">Install</a><a href="#start">Quick start</a><a href="#engines">Gemini</a><a href="#studio">YouTube Studio</a><a href="#panel">Side panel</a><a href="#kp">Keyword Planner</a><a href="#rules">YouTube rules</a><a href="#trouble">Troubleshooting</a><a href="#faq">FAQ</a><a href="#fr">Français</a></nav>
 </div></header>
@@ -79,8 +79,8 @@
   <h2>Gemini — your own Google account</h2>
   <p>TubePilot uses <b>Gemini in your own Google account</b> (gemini.google.com). There is <b>no API key and no AI Studio quota</b>: requests count against your Gemini plan like any conversation you have with Gemini.</p>
   <ol>
-    <li>TubePilot opens Gemini in a small window in the corner of the screen (or a background tab).</li>
-    <li>It selects the <b>Pro</b> model in Gemini’s model menu (setting <i>Gemini model</i>; choose “Keep the model selected in Gemini” to disable).</li>
+    <li>TubePilot opens Gemini in a small window in the foreground, in the corner of the screen (Chrome slows hidden windows down a lot), and returns to Studio at the end.</li>
+    <li>It selects the model in Gemini’s menu (setting <i>Gemini model</i>): <b>Fast</b> by default — answers in seconds — or <b>Pro</b> for a finer, slower analysis, or keep the model you selected yourself.</li>
     <li>It sends the <b>expert master prompt</b> with the <b>public link</b> of the video — or, for a private video, the audio of your file extracted on your computer (16 kHz WAV) and attached to the chat.</li>
     <li>If Gemini does not open the link the first time, TubePilot asks again in the same conversation.</li>
     <li>It reads Gemini’s JSON answer, sends a second request with the real YouTube searches (2-step mode), fills YouTube Studio and closes the window.</li>

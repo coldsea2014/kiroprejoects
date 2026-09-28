@@ -555,9 +555,6 @@
   'op.engine.noKey': 'Sans clé API · sans quota AI Studio',
   'op.engine.webDesc': 'TubePilot ouvre Gemini dans une petite fenêtre avec votre propre compte, envoie la consigne experte avec le lien public de la vidéo (ou l’audio de votre fichier), lit la réponse et referme la fenêtre.',
   'op.engine.model': 'Modèle Gemini',
-  'op.engine.modelPro': 'Pro (recommandé)',
-  'op.engine.modelKeep': 'Garder le modèle choisi dans Gemini',
-  'op.engine.modelHelp': 'Avant l’envoi, TubePilot choisit « Pro » dans le menu des modèles de Gemini : il écoute mieux. Cela compte dans les limites de votre abonnement Gemini, pas dans un quota d’API.',
   'op.studio.autofill': 'Écrire le résultat dans Studio automatiquement',
   'op.studio.autofillHelp': 'À la fin de l’analyse, le meilleur titre, la description avec sa timeline et les tags sont insérés.',
   'op.studio.replace': 'Remplacer l’ancien titre, l’ancienne description et les anciens tags',
@@ -573,5 +570,12 @@
   'studio.pinHint': 'Publiez-le en commentaire sous votre vidéo, puis ⋮ › Épingler. Une question épinglée fait monter les réponses et l’engagement.',
   'tab.comment': 'Commentaire',
   'gw.modelPro': 'Gemini Pro sélectionné.',
-  'prog.linkRetry': 'Gemini n’a pas ouvert le lien : nouvelle demande…'
+  'prog.linkRetry': 'Gemini n’a pas ouvert le lien : nouvelle demande…',
+
+  // 5.3 — fast / Pro model
+  'op.engine.modelFast': 'Rapide (recommandé) — réponses en quelques secondes',
+  'op.engine.modelPro': 'Pro — écoute plus fine, plus lent',
+  'op.engine.modelKeep': 'Garder le modèle choisi dans Gemini',
+  'op.engine.modelHelp': 'TubePilot choisit ce modèle dans le menu de Gemini avant l’envoi. Rapide répond en quelques secondes ; Pro réfléchit plus longtemps (une minute ou plus) pour une analyse plus fine. Cela compte dans les limites de votre abonnement Gemini, pas dans un quota d’API.',
+  'gw.modelFast': 'Modèle rapide de Gemini sélectionné.'
 };

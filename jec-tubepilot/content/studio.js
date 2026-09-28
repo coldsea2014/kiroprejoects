@@ -459,47 +459,73 @@
   const I = globalThis.TPIcons;
   const ic = (n, s) => I.icon(n, s);
 
-  // Emplacement de la carte : en haut de l'éditeur de Studio, AU-DESSUS du bloc titre + description
-  // (jamais à l'intérieur d'un bloc dont Studio calcule la hauteur, sinon la description déborde sur la suite de la page)
-  function anchorFor(e) {
+  // Emplacement de la carte : au-dessus du titre, en haut de la COLONNE du formulaire. Jamais dans une rangée côte à côte
+  // (formulaire + aperçu vidéo), ni dans un bloc dont Studio calcule la hauteur. Chaque emplacement est vérifié après
+  // l'insertion : si la page se décale (titre déplacé, défilement horizontal, carte écrasée), on essaie le suivant,
+  // et en dernier recours la carte devient un panneau flottant.
+  const isRow = (el) => {
+    if (!el || el === document.documentElement) return false;
+    const cs = getComputedStyle(el);
+    if (cs.display.includes('flex')) return !cs.flexDirection.startsWith('column');
+    if (cs.display.includes('grid')) return cs.gridTemplateColumns.trim().split(/\s+/).length > 1;
+    return false;
+  };
+  function candidates(e) {
     const t = e.title;
-    if (!t) return null;
-    const editor = t.closest('ytcp-video-metadata-editor');
-    if (editor && editor.firstElementChild) return { el: editor, where: 'afterbegin' };
-    if (e.description) {
-      let a = t, depth = 0;
-      while (a.parentElement && !a.parentElement.contains(e.description) && depth < 14) { a = a.parentElement; depth++; }
-      if (a.parentElement && a.parentElement.contains(e.description) && a !== document.body) return { el: a, where: 'beforebegin' };
+    if (!t) return [];
+    const list = [];
+    for (let a = t.parentElement, d = 0; a && a.parentElement && a !== document.body && d < 16; a = a.parentElement, d++) {
+      if (isRow(a.parentElement)) { list.push({ key: 'column', el: a, where: 'afterbegin' }); break; }
     }
-    const block = t.closest('ytcp-video-title') || t.closest('ytcp-form-input-container') || t.closest('#title-textarea') || t.parentElement;
-    return block ? { el: block, where: 'beforebegin' } : null;
+    const editor = t.closest('ytcp-video-metadata-editor');
+    if (editor?.parentElement && !isRow(editor.parentElement)) list.push({ key: 'above-editor', el: editor, where: 'beforebegin' });
+    if (editor && !isRow(editor) && editor.firstElementChild) list.push({ key: 'editor', el: editor, where: 'afterbegin' });
+    const block = t.closest('ytcp-video-title') || t.closest('ytcp-form-input-container') || t.parentElement;
+    if (block?.parentElement && !isRow(block.parentElement)) list.push({ key: 'title', el: block, where: 'beforebegin' });
+    return list;
   }
 
-  const INLINE_CSS = 'display:block;width:100%;flex:0 0 auto;margin:4px 0 16px;position:relative;z-index:1;clear:both';
+  const INLINE_CSS = 'display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0;flex:0 0 auto;align-self:stretch;margin:4px 0 16px;position:relative;z-index:1;clear:both';
   const FLOAT_CSS = 'display:block;position:fixed;right:16px;bottom:16px;width:min(460px,calc(100vw - 32px));max-height:78vh;overflow:auto;z-index:2200;border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,.28)';
-  function placeCard(anchor = anchorFor(els())) {
+  let placement = null, placementPage = '';
+  const isPlaced = (c) => card.host.isConnected && (c.where === 'afterbegin' ? c.el.firstElementChild === card.host : c.el.previousElementSibling === card.host);
+
+  // insère la carte à cet emplacement et vérifie que la page de Studio ne s'est pas décalée
+  function tryPlace(c, t) {
+    card.host.remove();
+    const x0 = t.getBoundingClientRect().left;
+    const w0 = Math.max(document.documentElement.scrollWidth, document.documentElement.clientWidth);
+    card.host.style.cssText = INLINE_CSS;
+    c.el.insertAdjacentElement(c.where, card.host);
+    const tr = t.getBoundingClientRect(), hr = card.host.getBoundingClientRect();
+    const ok = Math.abs(tr.left - x0) < 3 && document.documentElement.scrollWidth <= w0 + 3 && hr.width >= 280 && hr.bottom <= tr.top + 2;
+    if (!ok) card.host.remove();
+    return ok;
+  }
+
+  function placeCard() {
     if (!card) return;
     if (floating) {
       card.host.style.cssText = FLOAT_CSS;
       if (card.host.parentElement !== document.documentElement) document.documentElement.appendChild(card.host);
       return;
     }
-    if (!anchor) return;
-    card.host.style.cssText = INLINE_CSS;
-    const placed = anchor.where === 'afterbegin' ? anchor.el.firstElementChild === card.host : anchor.el.previousElementSibling === card.host;
-    if (!card.host.isConnected || !placed) {
-      anchor.el.insertAdjacentElement(anchor.where, card.host);
-      // la carte a changé la hauteur de la page : Studio doit l'avoir pris en compte, sinon panneau flottant
-      clearTimeout(placeCard.h);
-      placeCard.h = setTimeout(() => healLayout({ touchField: false }), 900);
-    }
+    const e = els();
+    if (!e.title) return;
+    if (placementPage !== location.pathname) { placementPage = location.pathname; placement = null; }
+    if (placement && placement.el.isConnected && isPlaced(placement)) return;
+    const list = candidates(e);
+    if (placement) list.sort((a, b) => (b.key === placement.key) - (a.key === placement.key));
+    placement = list.find((c) => tryPlace(c, e.title)) || null;
+    if (!placement) { floating = true; placeCard(); return; }
+    // la carte a changé la hauteur de la page : Studio doit l'avoir pris en compte, sinon panneau flottant
+    clearTimeout(placeCard.h);
+    placeCard.h = setTimeout(() => healLayout({ touchField: false }), 900);
   }
 
   function ensureCard() {
     const e = els();
     if (!settings.studioCard || !visible(e.title)) { if (card?.host.isConnected) card.host.remove(); return false; }
-    const anchor = anchorFor(e);
-    if (!anchor) return false;
     if (!card) {
       card = UI.shadow('tp-studio-card');
       card.body.addEventListener('click', onClick);
@@ -511,7 +537,7 @@
       card.root.appendChild(fileInput);
       render();
     }
-    placeCard(anchor);
+    placeCard();
     card.host.classList.toggle('dark', UI.isDark());
     card.body.dir = TPI18n.dir();
     return true;

@@ -3,11 +3,14 @@
 <head><meta charset="utf-8"><title>YouTube Studio (maquette de test)</title>
 <style>
   body { font-family: Roboto, Arial; background: #282828; color: #eee; margin: 0; }
-  ytcp-uploads-dialog { display: block; width: 900px; margin: 20px auto; background: #1f1f1f; padding: 20px; }
+  ytcp-uploads-dialog { display: block; width: 1100px; margin: 20px auto; background: #1f1f1f; padding: 20px; }
   #textbox { min-height: 24px; border: 1px solid #555; padding: 6px; white-space: pre-wrap; }
   ytcp-chip { display: inline-block; background: #444; margin: 2px; padding: 2px 6px; border-radius: 8px; }
   .hidden { display: none; }
-  ytcp-video-metadata-editor { display: flex; flex-direction: column; gap: 16px; }
+  /* comme la page « Détails » de Studio : une RANGÉE — formulaire à gauche, aperçu de la vidéo à droite */
+  ytcp-video-metadata-editor { display: flex; flex-direction: row; gap: 24px; align-items: flex-start; }
+  #form-col { display: flex; flex-direction: column; gap: 16px; flex: 1 1 auto; min-width: 0; }
+  ytcp-video-info { display: block; flex: 0 0 260px; background: #2b2b2b; padding: 12px; border-radius: 8px; }
   .fixed-box { display: block; height: 90px; position: relative; border: 1px solid #666; border-radius: 4px; padding: 8px; box-sizing: border-box; }
   ytcp-video-title, ytcp-video-description { display: block; }
   /* comme Studio : la hauteur du bloc est calculée par la page (saisie réelle ou redimensionnement), le texte en trop déborde */
@@ -18,6 +21,7 @@
   <input type="file" id="picker" name="Filedata">
   <ytcp-uploads-dialog class="hidden">
     <ytcp-video-metadata-editor>
+      <div id="form-col">
       <div id="basics">
       <ytcp-video-title><ytcp-form-input-container class="fixed-box"><div class="outline"><ytcp-social-suggestions-textbox id="title-textarea"><div id="textbox" contenteditable="true"></div></ytcp-social-suggestions-textbox></div></ytcp-form-input-container></ytcp-video-title>
       <ytcp-video-description><ytcp-social-suggestions-textbox id="description-textarea"><div id="textbox" contenteditable="true"></div></ytcp-social-suggestions-textbox></ytcp-video-description>
@@ -26,9 +30,10 @@
       <div id="more" class="hidden">
         <ytcp-form-input-container id="tags-container"><ytcp-free-text-chip-bar><div id="chips"></div><input id="text-input"></ytcp-free-text-chip-bar></ytcp-form-input-container>
       </div>
+      </div>
+      <ytcp-video-info><div class="label">Lien de la vidéo</div><a class="value" id="link" href="https://youtu.be/abcdefghijk">https://youtu.be/abcdefghijk</a>
+        <div class="label">Nom du fichier</div><div class="value" id="fname"></div></ytcp-video-info>
     </ytcp-video-metadata-editor>
-    <ytcp-video-info><div class="label">Lien de la vidéo</div><a class="value" id="link" href="https://youtu.be/abcdefghijk">https://youtu.be/abcdefghijk</a>
-      <div class="label">Nom du fichier</div><div class="value" id="fname"></div></ytcp-video-info>
   </ytcp-uploads-dialog>
 <script>
   // Studio calcule la hauteur du bloc titre + description au chargement, à chaque vraie saisie et au redimensionnement

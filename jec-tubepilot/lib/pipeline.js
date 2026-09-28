@@ -44,7 +44,7 @@ export function searchLocale(analysis, profile) {
   return { hl, gl, countries: countries.length ? countries : gl ? [gl] : [] };
 }
 
-async function gatherKeywords(ctx, analysis, profile, { deep = true, onProgress } = {}) {
+async function gatherKeywords(ctx, analysis, profile, { deep = true, deepSeeds = 2, onProgress } = {}) {
   const loc = searchLocale(analysis, profile);
   const primary = { hl: loc.hl, gl: loc.gl };
   const m = analysis?.music || {};
@@ -58,7 +58,7 @@ async function gatherKeywords(ctx, analysis, profile, { deep = true, onProgress 
     !analysis ? profile.genre : ''
   ].map((s) => String(s || '').trim()).filter((s) => s && s.length <= 60)).slice(0, 10);
   // la graine principale est aussi cherchée dans le 2e pays du public (ex. Arabie saoudite puis Koweït)
-  const jobs = seeds.map((seed, i) => ({ seed, loc: primary, deep: deep && i < 2 }));
+  const jobs = seeds.map((seed, i) => ({ seed, loc: primary, deep: deep && i < deepSeeds }));
   if (seeds[0] && loc.countries[1]) jobs.push({ seed: seeds[0], loc: { hl: loc.hl, gl: loc.countries[1] }, deep: false });
   const merged = new Map();
   let done = 0;
@@ -86,6 +86,23 @@ async function gatherKeywords(ctx, analysis, profile, { deep = true, onProgress 
   return { seed: seeds[0] || '', sources: seeds, items: items.slice(0, 90), best: candidates[0] || '', candidates, locale: { ...primary, countries: loc.countries } };
 }
 
+// Deux recherches fusionnées : celle d'après l'écoute (prioritaire) et celle lancée pendant l'écoute
+// (seuls les mots-clés de la 2e qui correspondent à ce que Gemini a entendu sont gardés)
+function mergeKeywords(main, extra) {
+  if (!main) return extra;
+  if (!extra) return main;
+  const rel = (kw) => main.sources.some((s) => S.similarity(kw, s) >= 0.34 || F.norm(kw).includes(F.norm(s)) || F.norm(s).includes(F.norm(kw)));
+  const map = new Map();
+  [...extra.items.filter((it) => rel(it.kw)), ...main.items].forEach((it) => {
+    const k = F.norm(it.kw);
+    const cur = map.get(k);
+    if (!cur || cur.popularity < it.popularity) map.set(k, it);
+  });
+  const candidates = [...main.candidates];
+  for (const c of extra.candidates) if (candidates.length < 3 && rel(c) && !candidates.some((x) => S.similarity(x, c) >= 0.6)) candidates.push(c);
+  return { ...main, items: [...map.values()].sort((a, b) => b.popularity - a.popularity).slice(0, 90), candidates, best: main.best || extra.best };
+}
+
 // Tendances YouTube du pays du style (clé YouTube facultative) ; une erreur n'arrête jamais la génération.
 // Les tendances web sont cherchées par Gemini lui-même sur Google, dans la conversation.
 async function gatherTrends({ settings, kw, warn }) {
@@ -105,7 +122,7 @@ async function chatAudio(file, ctx, emit) {
 }
 
 // Analyse dans gemini.google.com (votre abonnement) : lien si la vidéo est publique, sinon l'audio joint
-const openGemini = (settings) => W.openSession({ url: settings.geminiUrl, mode: settings.geminiWindow, model: settings.geminiModel });
+const openGemini = (settings) => W.openSession({ url: settings.geminiUrl, mode: settings.geminiWindow, model: settings.geminiMode });
 
 // lien de la vidéo s'il est public (ou non répertorié) : Gemini l'écoute directement
 async function publicLink({ youtubeUrl, raw, file, emit }) {
@@ -177,7 +194,7 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
   if (prev?.analysis && !options.reanalyze && sameMedia) { analysis = prev.analysis; media = prev.media; analysisModel = prev.models?.analysis || ''; ctx.duration = ctx.duration || prev.ctx?.duration; ctx.localBpm = ctx.localBpm || prev.ctx?.localBpm; }
 
   try {
-    let seoJson = null;
+    let seoJson = null, early = null;
     const listen = !analysis && options.mode !== 'express';
     if (listen && (options.steps || settings.geminiSteps) === 1 && (file || youtubeUrl || raw.videoId)) {
       // une seule demande : écoute + SEO
@@ -197,6 +214,8 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
         analysisModel = engineName;
       } else warns.push(t('warn.privateNoFile'));
     } else if (listen && (file || youtubeUrl || raw.videoId)) {
+      // pendant que Gemini écoute, les recherches YouTube démarrent déjà (titre, nom du fichier, genres de la chaîne)
+      early = gatherKeywords(ctx, null, profile, { deep: options.deepKeywords !== false, deepSeeds: 1 }).catch(() => null);
       const r = await webAnalyze({ file, youtubeUrl, raw, ctx, settings, emit, signal, warns, sessionRef });
       analysis = r.analysis;
       media = r.media;
@@ -206,7 +225,8 @@ export async function run({ file = null, youtubeUrl = '', ctx: raw = {}, options
     if (analysis?.is_cover) ctx.isCover = true;
 
     emit('keywords');
-    const kw = await gatherKeywords(ctx, analysis, profile, { deep: options.deepKeywords !== false, onProgress: (p) => emit('keywords', { pct: p }) });
+    const kwNow = gatherKeywords(ctx, analysis, profile, { deep: options.deepKeywords !== false, deepSeeds: early ? 1 : 2, onProgress: (p) => emit('keywords', { pct: p }) });
+    const kw = mergeKeywords(await kwNow, early ? await early : null);
 
     emit('trends', { detail: kw.locale.countries.join(', ') });
     const trends = await gatherTrends({ settings, kw, warn: (w) => { warns.push(w); emit('trends', { warn: w }); } });

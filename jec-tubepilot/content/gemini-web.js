@@ -14,7 +14,7 @@
   /* ---------- Éléments de la page (plusieurs sélecteurs : l'interface de Gemini change souvent) ---------- */
   const EDITOR = ['rich-textarea .ql-editor[contenteditable="true"]', 'div.ql-editor[contenteditable="true"]', 'div[contenteditable="true"][role="textbox"]', 'main textarea'];
   const SEND = ['button.send-button', 'button[aria-label*="Send" i]', 'button[aria-label*="Envoyer" i]', 'button[aria-label*="إرسال"]', 'button[data-test-id="send-button"]', 'button[mattooltip*="Send" i]'];
-  const STOP = ['button[aria-label*="Stop" i]', 'button[aria-label*="Arrêter" i]', 'button[aria-label*="Interrompre" i]', 'button[aria-label*="إيقاف"]', 'button[data-test-id="stop-button"]', 'button.stop'];
+  const STOP = ['button[aria-label*="Stop" i]', 'button[aria-label*="Arrêter" i]', 'button[aria-label*="Interrompre" i]', 'button[aria-label*="إيقاف"]', 'button[data-test-id="stop-button"]', 'button.stop', 'button:has(mat-icon[fonticon="stop"])', 'button:has([data-mat-icon-name="stop"])', 'button:has(.stop-icon)'];
   const RESP = ['model-response', '[data-test-id="model-response"]', '.model-response-text', 'message-content'];
   const THOUGHTS = 'model-thoughts, .model-thoughts, .thoughts-container, .thoughts-content, [data-test-id="model-thoughts"]';
   const PREVIEW = 'uploader-file-preview, .file-preview-container, [data-test-id="file-preview"], .attachment-preview, uploader-file-preview-container';
@@ -157,7 +157,9 @@
 
   /* ---------- Modèle : « Pro » choisi dans le sélecteur de Gemini (une fois par fenêtre) ---------- */
   const shown = (el) => !!el && el.getClientRects().length > 0 && !el.closest('#tp-gw');
-  const isPro = (s) => /\bpro\b/i.test(flat(s)) && !/\bflash\b/i.test(flat(s));
+  const isPro = (s) => /\bpro\b/i.test(flat(s)) && !/\b(flash|fast|rapide)\b/i.test(flat(s));
+  const isFast = (s) => /\b(flash|fast|rapide)\b|سريع/i.test(flat(s)) && !/\bpro\b/i.test(flat(s));
+  const MODES = { pro: isPro, fast: isFast };
   const MODEL_BTN = ['[data-test-id="bard-mode-menu-button"]', '[data-test-id*="mode-switcher"] button', 'bard-mode-switcher button', 'button[aria-label*="mode" i]', 'button[aria-label*="model" i]', 'button[aria-label*="modèle" i]', 'button[aria-label*="النموذج"]'];
   const MODEL_ITEM = '[role="menuitem"], [role="menuitemradio"], [role="option"], .mat-mdc-menu-item, bard-mode-list-button, [data-test-id*="mode-item"]';
   function modelButton() {
@@ -167,14 +169,15 @@
   }
   let modelTried = false;
   async function pickModel(want) {
-    if (want !== 'pro' || modelTried) return;
+    const match = MODES[want];
+    if (!match || modelTried) return;
     modelTried = true;
     try {
       const btn = modelButton();
-      if (!btn || isPro(btn.textContent)) return;
+      if (!btn || match(btn.textContent)) return;
       btn.click();
-      const item = await waitFor(() => [...document.querySelectorAll(MODEL_ITEM)].find((el) => shown(el) && isPro(el.textContent) && !el.matches('[aria-disabled="true"], [disabled]')), 4000, 150);
-      if (item) { item.click(); status(t('gw.modelPro')); await sleep(700); }
+      const item = await waitFor(() => [...document.querySelectorAll(MODEL_ITEM)].find((el) => shown(el) && match(el.textContent) && !el.matches('[aria-disabled="true"], [disabled]')), 3000, 120);
+      if (item) { item.click(); status(t(want === 'pro' ? 'gw.modelPro' : 'gw.modelFast')); await sleep(500); }
       else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
     } catch (e) { /* sélecteur introuvable : le modèle actuel est gardé */ }
   }
@@ -234,7 +237,7 @@
   // Attend la fin de la réponse ; JSON incomplet → redemande (2 fois au plus)
   function watch(me, baseline) {
     return new Promise((resolve, reject) => {
-      let lastText = '', stableSince = Date.now(), lastProgress = Date.now(), frontAsked = false, busy = false;
+      let lastText = '', lastRaw = -1, stableSince = Date.now(), lastProgress = Date.now(), frontAsked = false, busy = false;
       const t0 = Date.now();
       const finish = (fn, v) => { clearInterval(timer); obs.disconnect(); fn(v); };
       const tick = async () => {
@@ -244,15 +247,18 @@
         if (gen) lastProgress = now;
         if (now - t0 > 12 * 60000) return finish(reject, new Error(t('gw.timeout')));
         const rs = responses();
+        // « Gemini réfléchit » (raisonnement, indicateur d'attente) compte comme une avancée : on ne dérange pas l'utilisateur
+        const raw = rs.length > baseline ? (rs[rs.length - 1].textContent || '').length : -1;
+        if (raw !== lastRaw) { lastRaw = raw; lastProgress = now; }
+        const stalled = !frontAsked && now - lastProgress > (document.hidden ? 45000 : 150000);
         if (rs.length <= baseline) {
-          if (!frontAsked && now - lastProgress > 60000) { frontAsked = true; send({ type: 'gw:front', id: me.id, why: 'stall' }); }
+          if (stalled) { frontAsked = true; send({ type: 'gw:front', id: me.id, why: 'stall' }); }
           return;
         }
         const text = answerText(rs[rs.length - 1]);
-        if (!text) return;
+        if (!text) { if (stalled) { frontAsked = true; send({ type: 'gw:front', id: me.id, why: 'stall' }); } return; }
         if (text !== lastText) { lastText = text; stableSince = now; lastProgress = now; return; }
         const still = now - stableSince;
-        if (!frontAsked && document.hidden && now - lastProgress > 60000) { frontAsked = true; send({ type: 'gw:front', id: me.id, why: 'stall' }); }
         if (gen && still < 8000) return;
         const { obj, cut } = J.parse(text, me.keys || []);
         const anyObj = obj || J.parse(text, []).obj;

@@ -58,7 +58,7 @@ const extId = new URL(sw.url()).host;
 log('extension chargée', extId);
 
 // page « Détails » d'une vidéo déjà en ligne : mêmes champs, sans fenêtre d'import
-const studioEditHtml = studioHtml.replace('<ytcp-uploads-dialog class="hidden">', '<div class="edit-page" style="display:block;width:900px;margin:20px auto">').replace('</ytcp-uploads-dialog>', '</div>');
+const studioEditHtml = studioHtml.replace('<ytcp-uploads-dialog class="hidden">', '<div class="edit-page" style="display:block;width:1100px;margin:20px auto">').replace('</ytcp-uploads-dialog>', '</div>');
 await ctx.route('https://studio.youtube.com/**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: /\/video\/[\w-]{11}\/edit/.test(r.request().url()) ? studioEditHtml : studioHtml }));
 await ctx.route('https://www.youtube.com/oembed**', (r) => r.fulfill({ status: /privatevideo/.test(r.request().url()) ? 401 : 200, contentType: 'application/json', body: '{}' }));
 await ctx.route('https://www.youtube.com/watch**', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: watchHtml }));
@@ -80,7 +80,7 @@ function watch(page, name) {
 const opt = await ctx.newPage();
 watch(opt, 'options');
 await opt.goto(`chrome-extension://${extId}/options/options.html`);
-await opt.evaluate(() => chrome.storage.local.set({ settings: { geminiSteps: 2, geminiWindow: 'popup', geminiClose: true, geminiModel: 'pro', competitorLookup: false, autopilot: true, autofill: true, replaceExisting: true, profiles: [{ id: 'default', name: 'Chaîne test', channelId: 'UCabcdefghijklmnopqrstuv', languages: 'ar, fr', country: 'MA', niche: 'Musique marocaine', genre: 'chaabi', aiGenerated: true, signature: 'Instagram : https://instagram.com/test' }], activeProfile: 'default' } }));
+await opt.evaluate(() => chrome.storage.local.set({ settings: { geminiSteps: 2, geminiWindow: 'popup', geminiClose: true, geminiMode: 'pro', competitorLookup: false, autopilot: true, autofill: true, replaceExisting: true, profiles: [{ id: 'default', name: 'Chaîne test', channelId: 'UCabcdefghijklmnopqrstuv', languages: 'ar, fr', country: 'MA', niche: 'Musique marocaine', genre: 'chaabi', aiGenerated: true, signature: 'Instagram : https://instagram.com/test' }], activeProfile: 'default' } }));
 await opt.reload();
 await opt.waitForSelector('.op-profile');
 await opt.screenshot({ path: path.join(shots, '1-options.png'), fullPage: true });
@@ -153,9 +153,12 @@ const geo = await studio.evaluate(() => {
   const title = r(document.querySelector('ytcp-video-title'));
   const desc = r(document.querySelector('#description-textarea #textbox'));
   const next = r(document.querySelector('#toggle-button'));
-  return { cardBottom: Math.round(card.bottom), titleTop: Math.round(title.top), descBottom: Math.round(desc.bottom), nextTop: Math.round(next.top), h: Math.round(card.height), floating: getComputedStyle(document.querySelector('#tp-studio-card')).position === 'fixed' };
+  const editor = r(document.querySelector('ytcp-video-metadata-editor'));
+  const doc = document.documentElement;
+  return { cardBottom: Math.round(card.bottom), titleTop: Math.round(title.top), titleLeft: Math.round(title.left), editorLeft: Math.round(editor.left), descBottom: Math.round(desc.bottom), nextTop: Math.round(next.top), h: Math.round(card.height), w: Math.round(card.width), hScroll: doc.scrollWidth > doc.clientWidth + 2, floating: getComputedStyle(document.querySelector('#tp-studio-card')).position === 'fixed' };
 });
-if (!(geo.h > 80 && (geo.floating || geo.cardBottom <= geo.titleTop + 1) && geo.descBottom <= geo.nextTop + 1)) errors.push('mise en page Studio cassée : ' + JSON.stringify(geo));
+// pas de décalage : le titre reste au bord gauche du formulaire, pas de défilement horizontal, carte au-dessus du titre, description sans débordement
+if (!(geo.h > 80 && geo.w >= 280 && !geo.hScroll && Math.abs(geo.titleLeft - geo.editorLeft) < 4 && (geo.floating || geo.cardBottom <= geo.titleTop + 1) && geo.descBottom <= geo.nextTop + 1)) errors.push('mise en page Studio cassée : ' + JSON.stringify(geo));
 log('mise en page : carte au-dessus du titre, description sans débordement :', JSON.stringify(geo));
 
 // clic sur un autre titre proposé
@@ -194,9 +197,16 @@ await edit.waitForFunction(() => ![...document.querySelectorAll('ytcp-chip')].so
 await edit.waitForFunction(() => /Save/.test(document.querySelector('#tp-studio-card')?.shadowRoot?.querySelector('.tp-alert--good')?.textContent || ''), null, { timeout: 10000 }).catch(() => {});
 const ed = await edit.evaluate(() => ({ title: document.querySelector('#title-textarea #textbox').textContent, description: document.querySelector('#description-textarea #textbox').innerText, note: document.querySelector('#tp-studio-card').shadowRoot.querySelector('.tp-alert--good')?.textContent || '' }));
 const editLog = gemLog.slice(logBefore);
-const edGeo = await edit.evaluate(() => ({ descBottom: Math.round(document.querySelector('#description-textarea #textbox').getBoundingClientRect().bottom), nextTop: Math.round(document.querySelector('#toggle-button').getBoundingClientRect().top) }));
+const edGeo = await edit.evaluate(() => {
+  const r = (s) => document.querySelector(s).getBoundingClientRect();
+  const doc = document.documentElement;
+  return { descBottom: Math.round(r('#description-textarea #textbox').bottom), nextTop: Math.round(r('#toggle-button').top), titleLeft: Math.round(r('ytcp-video-title').left), editorLeft: Math.round(r('ytcp-video-metadata-editor').left), hScroll: doc.scrollWidth > doc.clientWidth + 2 };
+});
 if (edGeo.descBottom > edGeo.nextTop + 1) errors.push('vidéo publiée : la description déborde sur la suite de la page ' + JSON.stringify(edGeo));
+if (edGeo.hScroll || Math.abs(edGeo.titleLeft - edGeo.editorLeft) > 3) errors.push('vidéo publiée : la page Studio est décalée ' + JSON.stringify(edGeo));
 if (ed.title === 'Ancien titre' || ed.description.includes('Ancienne description')) errors.push('vidéo publiée : ancien titre / description pas remplacés');
+const edTags = await edit.evaluate(() => [...document.querySelectorAll('ytcp-chip #chip-text')].map((c) => c.textContent));
+if (edTags.some((x) => /ancien/i.test(x))) errors.push('vidéo publiée : tags tirés de l\'ancien titre : ' + edTags.join(', '));
 if (!/00:12 🔥 اللازمة/.test(ed.description)) errors.push('vidéo publiée : timeline absente');
 if (editLog[0]?.link !== 'watch?v=pubvideo123' || editLog[0]?.files?.length) errors.push('vidéo publiée : Gemini n\'a pas reçu le lien public seul : ' + JSON.stringify(editLog[0]));
 if (!/Save/.test(ed.note)) errors.push('vidéo publiée : rappel « Enregistrer » absent : ' + ed.note);

@@ -23,7 +23,7 @@ export const DEFAULT_PROFILE = {
 export const DEFAULTS = {
   // l'IA est Gemini dans votre propre compte (gemini.google.com) : aucune clé API, aucun quota AI Studio
   geminiUrl: 'https://gemini.google.com/app', // 2e compte Google : https://gemini.google.com/u/1/app
-  geminiModel: 'pro',       // pro = TubePilot choisit « Pro » dans Gemini ; keep = garder le modèle sélectionné
+  geminiMode: 'fast',       // fast = modèle rapide (Flash) ; pro = Pro (plus lent, plus fin) ; keep = garder le modèle sélectionné dans Gemini
   geminiSteps: 2,           // 2 = écoute puis SEO avec les vraies recherches YouTube ; 1 = une seule demande (plus rapide)
   geminiWindow: 'popup',    // popup = petite fenêtre dans le coin ; tab = onglet en arrière-plan
   geminiClose: true,        // fermer Gemini dès que le JSON est récupéré
@@ -42,7 +42,7 @@ export const DEFAULTS = {
 };
 
 // réglages de l'ancien mode « clé API AI Studio », supprimé en 5.1 (la clé est effacée au prochain enregistrement)
-const LEGACY = ['aiEngine', 'geminiKey', 'modelMain', 'modelFast', 'models', 'mediaMode', 'deleteFiles', 'webTrends'];
+const LEGACY = ['geminiModel', 'aiEngine', 'geminiKey', 'modelMain', 'modelFast', 'models', 'mediaMode', 'deleteFiles', 'webTrends'];
 
 const area = () => chrome.storage.local;
 

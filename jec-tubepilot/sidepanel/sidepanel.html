@@ -19,6 +19,7 @@
   <nav class="sp-nav" role="tablist">
     <button class="sp-navbtn" data-tab="video" aria-selected="true"><span data-icon="video"></span><span data-i18n="nav.video"></span></button>
     <button class="sp-navbtn" data-tab="keywords"><span data-icon="key"></span><span data-i18n="nav.keywords"></span></button>
+    <button class="sp-navbtn" data-tab="radar"><span data-icon="flame"></span><span data-i18n="nav.radar"></span><i id="radarBadge" class="sp-badge tp-hidden"></i></button>
     <button class="sp-navbtn" data-tab="competitors"><span data-icon="users"></span><span data-i18n="nav.competitors"></span></button>
     <button class="sp-navbtn" data-tab="trends"><span data-icon="trending"></span><span data-i18n="nav.trends"></span></button>
     <button class="sp-navbtn" data-tab="history"><span data-icon="history"></span><span data-i18n="nav.history"></span></button>
@@ -122,6 +123,23 @@
         </div>
         <div class="tp-card__body"><div id="basketChips" class="tp-chips"></div></div>
       </div>
+    </section>
+
+    <!-- ================= RADAR VIRAL ================= -->
+    <section id="tab-radar" class="sp-tab">
+      <div class="tp-card">
+        <div class="tp-card__head"><span class="tp-acc__icon" data-icon="flame"></span><b data-i18n="radar.title"></b><span class="tp-grow"></span>
+          <button id="radarScan" class="tp-btn tp-btn--sm"><span data-icon="refresh"></span><span data-i18n="radar.scan"></span></button></div>
+        <div class="tp-card__body">
+          <div id="radarInfo" class="tp-tiny tp-faint"></div>
+          <div id="radarList" class="tp-list"></div>
+        </div>
+      </div>
+      <div class="tp-card">
+        <div class="tp-card__head"><span class="tp-acc__icon" data-icon="chart"></span><b data-i18n="radar.mine"></b></div>
+        <div class="tp-card__body"><div id="radarMine" class="tp-list"></div></div>
+      </div>
+      <div id="teardownBox"></div>
     </section>
 
     <!-- ================= CONCURRENTS ================= -->

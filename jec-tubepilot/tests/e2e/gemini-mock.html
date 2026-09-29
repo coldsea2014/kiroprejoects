@@ -20,6 +20,7 @@
 <script>
   // Comportement minimal de Gemini : fichier collé → aperçu, Envoyer → réponse en JSON (analyse ou SEO) après « réflexion »
   const ANALYSIS = __ANALYSIS__, SEO = __SEO__;
+  const TEARDOWN = { verdict: 'Le refrain arrive dès 0:03 avec un drop de darbouka', hook_first_seconds: 'Refrain a cappella puis drop', music: { style: 'chaabi 6/8', bpm: 120, chorus_start: 3, best_moment: 42, best_moment_why: 'drop' }, viral_factors: [{ factor: 'Refrain immédiat', evidence: 'refrain à 0:03', weight: 5 }, { factor: 'Question en titre', evidence: 'titre', weight: 3 }], title_formula: '[refrain] 🔥 [style + pays] [année]', thumbnail_formula: 'visage + texte 2 mots', emotional_trigger: 'fierté', audience: 'MA, DZ', timeline: [{ start: 0, label: 'Intro' }], copy: ['Refrain dans les 5 premières secondes'], avoid: ['Reprendre la chanson ou le titre'], for_my_channel: { title_ideas: ['قولها ليا 🔥 شعبي مغربي 2026', 'للي بغا يفرح 💃 شعبي نايضة', 'صيفطها للي تحبها 💌 شعبي'], short_idea: 'Short du refrain', timing: 'Publier cette semaine' } };
   const ed = document.querySelector('.ql-editor'), send = document.querySelector('.send-button'), chat = document.getElementById('chat');
   window.__prompts = []; window.__files = []; window.__model = 'Flash';
   // sélecteur de modèle (comme Gemini) : Flash par défaut
@@ -46,7 +47,7 @@
     const uq = document.createElement('user-query'); uq.textContent = prompt.slice(0, 60); chat.append(uq);
     const stop = document.createElement('button'); stop.setAttribute('aria-label', 'Stop response'); document.querySelector('.input-area').append(stop);
     const mr = document.createElement('model-response'); const mc = document.createElement('message-content'); mr.append(mc); chat.append(mr);
-    const json = prompt.includes('DELIVERABLES') ? SEO : ANALYSIS;
+    const json = prompt.includes('VIRAL TEARDOWN') ? TEARDOWN : prompt.includes('DELIVERABLES') ? SEO : ANALYSIS;
     // comme un modèle qui « réfléchit » : le raisonnement avance avant la réponse
     mc.innerHTML = '<model-thoughts>Réflexion</model-thoughts>';
     let dots = 0; const th = setInterval(() => { const m = mc.querySelector('model-thoughts'); if (m) m.textContent = 'Réflexion' + '.'.repeat(++dots % 6); }, 250);

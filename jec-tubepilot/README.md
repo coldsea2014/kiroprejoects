@@ -17,7 +17,8 @@ Manifest V3 Chrome extension. **Gemini — in the user’s own Google account, n
 | SEO pack | 6–12 scored titles with emojis (hooks), 3 A/B titles, description with chapters and 🔥 best moments, tags ≤ 500 chars, 3–5 hashtags, pinned comment, thumbnail texts, Short |
 | Studio | Card above the title (outside Studio’s managed blocks, overflow check after each insertion), autopilot on upload, replaces the old title / description / tags (option), comment to pin, tag suggestions while typing, watch-page analysis card |
 | Rules | Title/description/tags/hashtags/chapters checks against YouTube policies, synthetic-content and cover reminders |
-| Panel | Video report, keywords, competitors (outliers, best hours, top tags), trends, history |
+| Viral radar | Every 4 h: speed of the new videos of followed channels vs their usual pace (🔥 ×3+ alerts), “Why it took off” teardown by Gemini, my videos vs the niche pace for 7 days with title alternatives |
+| Panel | Video report, keywords, radar, competitors (outliers, best hours, top tags), trends, history |
 | UI | English / French / Arabic (RTL), light / dark, SVG icons, design tokens |
 | Privacy | No server; everything in `chrome.storage.local`; YouTube API data pruned after 30 days |
 
@@ -41,10 +42,11 @@ tools/                   zip packager, i18n checker, icon generator
 
 ## Development
 ```bash
-npm test                 # 30 unit tests (node --test)
+npm test                 # 34 unit tests (node --test)
 npm run i18n             # every translation key exists in en/fr/ar
 npm run e2e              # Chromium + extension, mocked Google services (needs Playwright)
 npm run zip              # dist/tubepilot-<version>.zip (extension) + dist/tubepilot-<version>-source.zip
+TP_YT_KEY=AIza… npm run zip   # + dist/tubepilot-<version>-personnel.zip with your YouTube key pre-filled (never committed)
 ```
 Add a language: copy `lib/locales/en.js` to `lib/locales/xx.js`, translate, add it to `lib/lang.js`, `manifest.json` (content scripts) and `NAMES` in `lib/i18n.js`, then run `npm run i18n`.
 

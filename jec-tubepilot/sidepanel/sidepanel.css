@@ -14,7 +14,7 @@ body { padding-bottom: 96px; }
 .sp-profile { width: auto; max-width: 140px; min-height: 30px; padding: 4px 8px; font-size: 12px; }
 .sp-nav {
   position: sticky; top: 53px; z-index: 5;
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px;
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px;
   padding: 6px 8px; background: var(--tp-surface); border-bottom: 1px solid var(--tp-border);
 }
 .sp-navbtn {
@@ -23,6 +23,12 @@ body { padding-bottom: 96px; }
 }
 .sp-navbtn:hover { color: var(--tp-text); background: var(--tp-surface-2); }
 .sp-navbtn[aria-selected="true"] { color: var(--tp-brand); background: var(--tp-brand-soft); }
+.sp-navbtn { position: relative; }
+.sp-badge { position: absolute; top: 2px; inset-inline-end: 8px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: #db2777; color: #fff; font: 700 10px/16px var(--tp-font); font-style: normal; }
+.sp-rthumb { width: 64px; height: 36px; border-radius: 6px; object-fit: cover; flex: none; background: var(--tp-surface-2); }
+.sp-hot { box-shadow: inset 3px 0 0 #db2777; }
+.sp-factor { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; }
+.sp-factor .tp-bar { grid-column: 1 / -1; height: 5px; }
 main { padding: 12px; }
 .sp-tab { display: none; gap: 12px; }
 .sp-tab.on { display: grid; }

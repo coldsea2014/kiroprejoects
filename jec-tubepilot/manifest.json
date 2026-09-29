@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_appName__",
   "short_name": "TubePilot",
-  "version": "5.3.0",
+  "version": "5.4.0",
   "description": "__MSG_appDesc__",
   "minimum_chrome_version": "116",
   "icons": {
@@ -31,7 +31,9 @@
     "unlimitedStorage",
     "sidePanel",
     "scripting",
-    "clipboardWrite"
+    "clipboardWrite",
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "https://studio.youtube.com/*",

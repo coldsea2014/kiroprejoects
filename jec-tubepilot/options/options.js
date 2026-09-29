@@ -12,7 +12,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const ic = (n, s = 15) => I.icon(n, s);
 
 const VALUES = ['ytKey', 'titleCount', 'geminiUrl', 'geminiMode', 'geminiSteps', 'geminiWindow'];
-const CHECKS = ['geminiClose', 'transcribeLyrics', 'competitorLookup', 'autopilot', 'autofill', 'replaceExisting', 'studioCard', 'tagSuggest', 'watchCard'];
+const CHECKS = ['radarAlerts', 'geminiClose', 'transcribeLyrics', 'competitorLookup', 'autopilot', 'autofill', 'replaceExisting', 'studioCard', 'tagSuggest', 'watchCard'];
 const PROFILE_FIELDS = ['name', 'channelId', 'handle', 'artistName', 'niche', 'genre', 'languages', 'country', 'audience', 'tone'];
 
 let settings;

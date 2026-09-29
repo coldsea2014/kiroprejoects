@@ -67,6 +67,7 @@
           <div class="tp-chips">${tags.length ? tags.map((x) => `<button class="tp-chip tp-chip--click tp-bidi" data-act="kw" data-kw="${esc(x)}" title="${esc(t('watch.analyzeKeyword'))}">${esc(x)}</button>`).join('') : `<span class="tp-small tp-faint">${esc(t('watch.noTags'))}</span>`}</div>
         </div>
         <div class="tp-row">
+          <button class="tp-btn tp-btn--sm" data-act="why" title="${esc(t('watch.whyHint'))}">${ic('flame', 13)} ${esc(t('watch.why'))}</button>
           <button class="tp-btn tp-btn--sm" data-act="follow">${ic('users', 13)} ${esc(t('watch.follow'))}</button>
           <button class="tp-btn tp-btn--sm" data-act="hooks">${ic('target', 13)} ${esc(t('watch.hookFormulas'))}</button>
           <button class="tp-btn tp-btn--sm" data-act="kw" data-kw="${esc(tags[0] || d.title)}">${ic('key', 13)} ${esc(t('watch.keywords'))}</button>
@@ -94,6 +95,9 @@
         UI.openPanel({ tab: 'keywords', keyword: b.dataset.kw });
       } else if (act === 'hooks') {
         UI.openPanel({ tab: 'competitors', channelId: data.channelId, videoTitle: data.title });
+      } else if (act === 'why') {
+        const v = stats?.video;
+        UI.openPanel({ tab: 'radar', teardown: { id: data.videoId, title: data.title, channelTitle: v?.channelTitle || data.author || '', views: v?.views || data.viewCount, publishedAt: v?.publishedAt || data.publishDate, vph: F.vph(v?.views || data.viewCount, v?.publishedAt || data.publishDate), tags: (v?.tags || data.keywords || []).slice(0, 15) } });
       } else if (act === 'follow') {
         const c = await UI.send('addCompetitor', { channel: data.channelId });
         UI.toast(t('toast.followed', { name: c.title }));

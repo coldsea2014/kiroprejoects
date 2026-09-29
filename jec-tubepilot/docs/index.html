@@ -34,9 +34,9 @@
 </head>
 <body>
 <header><div class="in">
-  <h1>TubePilot 5.3</h1>
+  <h1>TubePilot 5.4</h1>
   <p>AI SEO for music videos on YouTube — Gemini listens to your song, then writes titles, a 00:00 timeline of the best moments, tags and hashtags, and fills YouTube Studio for you.</p>
-  <nav><a href="#install">Install</a><a href="#start">Quick start</a><a href="#engines">Gemini</a><a href="#studio">YouTube Studio</a><a href="#panel">Side panel</a><a href="#kp">Keyword Planner</a><a href="#rules">YouTube rules</a><a href="#trouble">Troubleshooting</a><a href="#faq">FAQ</a><a href="#fr">Français</a></nav>
+  <nav><a href="#install">Install</a><a href="#start">Quick start</a><a href="#engines">Gemini</a><a href="#studio">YouTube Studio</a><a href="#radar">Viral radar</a><a href="#panel">Side panel</a><a href="#kp">Keyword Planner</a><a href="#rules">YouTube rules</a><a href="#trouble">Troubleshooting</a><a href="#faq">FAQ</a><a href="#fr">Français</a></nav>
 </div></header>
 <main>
 
@@ -105,11 +105,23 @@
   </ul>
 </section>
 
+<section id="radar">
+  <h2>Viral radar</h2>
+  <p>Follow the channels of your niche (Competitors tab, or “Follow channel” on any YouTube video). With a YouTube Data API key, the <b>Radar</b> tab then shows:</p>
+  <ul>
+    <li><b>Taking off now</b> — every 4 hours TubePilot reads the views of the new videos (less than 7 days old) of the channels you follow. The speed is the number of views gained between two readings (estimated from the publication date on the first reading), compared with the usual pace of the channel. From <b>×3</b> the video is flagged 🔥 and you get a notification and a counter on the TubePilot icon. Cost: about 2 quota units per followed channel per reading.</li>
+    <li><b>Why it took off</b> — click “Why?”: Gemini (your account) watches and listens to the video by its link and explains the first 5 seconds, the viral factors, the title and thumbnail formulas, what to reuse and what must not be copied, then proposes 3 original titles, a Short and a timing for <i>your</i> next song. Also available on every YouTube video page (“Why viral?”). The result is kept 7 days.</li>
+    <li><b>My videos vs the niche</b> — every video filled in by TubePilot in Studio is tracked for 7 days after publication. Its speed is compared with the pace of your niche (median of the followed channels). If it is below half the niche pace between 3 h and 48 h, you are notified and TubePilot proposes the alternative titles to test with YouTube “Test &amp; compare”.</li>
+  </ul>
+  <p class="muted">Public numbers only: nobody can see the click-through rate, retention or traffic sources of other channels. Alerts can be turned off in Settings › YouTube API.</p>
+</section>
+
 <section id="panel">
   <h2>Side panel</h2>
   <table>
     <tr><th>Video</th><td>Run an analysis on the Studio video, a file, a YouTube link or quick mode; full report with editable title, description, tags, timeline, listening analysis, keywords, trends, pinned comment, thumbnail and Short; <b>Apply all to Studio</b>.</td></tr>
     <tr><th>Keywords</th><td>Deep A→Z YouTube search research in any language / country, popularity, Keyword Planner volume, Google Trends link, competition analysis of a keyword, hook ideas from winning titles, a tag basket to insert into Studio.</td></tr>
+    <tr><th>Radar</th><td>Videos taking off now among the channels you follow, “Why it took off” by Gemini, my videos vs the niche pace.</td></tr>
     <tr><th>Competitors</th><td>Follow channels (@handle, link or ID): their outlier videos, what works (hooks, length, emoji), when they publish, most used tags.</td></tr>
     <tr><th>Trends</th><td>YouTube trending music by country and category, plus rising searches and hashtags found by Gemini on Google.</td></tr>
     <tr><th>History</th><td>All previous analyses, reopen or delete.</td></tr>

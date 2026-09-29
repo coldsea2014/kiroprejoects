@@ -4,7 +4,7 @@ import { getSettings, pickProfile, profileLanguages, savePack, getPack } from '.
 import * as W from './gemini-web.js';
 import { research, competition } from './keywords.js';
 import { youtubeTrends } from './trends.js';
-import { hooksPrompt, webAnalysisPrompt, webLinkRetryPrompt, webSeoPrompt, webSinglePrompt, jsonFormat, HOOKS_SCHEMA } from './prompts.js';
+import { hooksPrompt, webAnalysisPrompt, webLinkRetryPrompt, webSeoPrompt, webSinglePrompt, teardownPrompt, jsonFormat, HOOKS_SCHEMA } from './prompts.js';
 import { isPublic } from './ytapi.js';
 import './format.js';
 import './policy.js';
@@ -308,4 +308,26 @@ export async function analyzeHooks(titles, { topic = '', profileId } = {}) {
   if (!json) throw new W.GeminiWebError(t('err.unreadable'), 'json');
   const ideas = (json.title_ideas || []).map((x) => ({ ...x, score: S.scoreTitle(x.text, { keyword: topic }).score }));
   return { formulas: [], power_words: [], recommendations: [], ...json, title_ideas: ideas.sort((a, b) => b.score - a.score) };
+}
+
+// « Pourquoi elle a explosé » : Gemini écoute la vidéo concurrente par son lien et en tire des leviers pour ma chaîne.
+// Résultat gardé 7 jours (une seule demande à Gemini par vidéo).
+export async function teardown(video, { profileId, force = false, onStatus, signal } = {}) {
+  const ck = 'td:' + video.id;
+  if (!force) {
+    const hit = (await chrome.storage.local.get(ck))[ck];
+    if (hit && Date.now() - hit.ts < 7 * 86400000) return hit.data;
+  }
+  const settings = await getSettings();
+  const profile = (profileId && settings.profiles.find((p) => p.id === profileId)) || pickProfile(settings);
+  const s = await openGemini(settings);
+  let r;
+  try {
+    r = await W.ask(s, { prompt: teardownPrompt(video, { profile }), keys: ['verdict', 'viral_factors'], signal, onStatus });
+  } finally { if (settings.geminiClose !== false) W.closeSession(s); }
+  if (r.error) throw new W.GeminiWebError(t('warn.noAccess', { why: r.error }), 'access');
+  if (!r.obj) throw new W.GeminiWebError(t('err.unreadable'), 'json');
+  const data = { ...r.obj, video: { id: video.id, title: video.title, channelTitle: video.channelTitle || '' }, at: Date.now() };
+  await chrome.storage.local.set({ [ck]: { ts: Date.now(), data } });
+  return data;
 }

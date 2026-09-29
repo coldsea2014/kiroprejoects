@@ -230,6 +230,45 @@ await panel.waitForSelector('#kwResults table', { timeout: 10000 });
 log('mots-clés trouvés :', await panel.locator('#kwResults tr').count() - 1);
 await panel.screenshot({ path: path.join(shots, '4-keywords.png'), fullPage: true });
 
+// 3c. Radar viral : relevé des chaînes suivies (YouTube Data API simulée), « Pourquoi ? » par Gemini
+const H = 3600000, D = 24 * H;
+const iso = (ms) => new Date(Date.now() - ms).toISOString();
+const YTV = {
+  hotvideo001: { title: 'قولها ليا 🔥 شعبي مغربي', publishedAt: iso(10 * H), views: 20000 },
+  old00000001: { title: 'a', publishedAt: iso(5 * D), views: 40000 },
+  old00000002: { title: 'b', publishedAt: iso(8 * D), views: 50000 },
+  old00000003: { title: 'c', publishedAt: iso(12 * D), views: 60000 },
+  abcdefghijk: { title: 'Ma chanson', publishedAt: iso(6 * H), views: 300 }
+};
+await ctx.route('https://www.googleapis.com/youtube/v3/**', (r) => {
+  const u = new URL(r.request().url());
+  if (u.pathname.endsWith('/playlistItems')) return r.fulfill({ json: { items: ['hotvideo001', 'old00000001', 'old00000002', 'old00000003'].map((id) => ({ contentDetails: { videoId: id } })) } });
+  if (u.pathname.endsWith('/videos')) return r.fulfill({ json: { items: u.searchParams.get('id').split(',').filter((id) => YTV[id]).map((id) => ({ id, snippet: { title: YTV[id].title, publishedAt: YTV[id].publishedAt, channelId: 'UCaaaaaaaaaaaaaaaaaaaaaa', channelTitle: 'Chaîne A', thumbnails: {} }, statistics: { viewCount: String(YTV[id].views) }, contentDetails: { duration: 'PT3M' } })) } });
+  return r.fulfill({ json: { items: [] } });
+});
+await opt.evaluate(async () => {
+  const { settings } = await chrome.storage.local.get('settings');
+  await chrome.storage.local.set({ settings: { ...settings, ytKey: 'TESTKEY', geminiMode: 'fast' }, competitors: [{ id: 'UCaaaaaaaaaaaaaaaaaaaaaa', title: 'Chaîne A', uploads: 'UUaaaaaaaaaaaaaaaaaaaaaa', subs: 120000 }] });
+});
+await panel.reload();
+await panel.click('.sp-navbtn[data-tab="radar"]');
+await panel.click('#radarScan');
+await panel.waitForSelector('#radarList .sp-hot', { timeout: 15000 });
+const radarRow = await panel.locator('#radarList .sp-hot').first().innerText();
+if (!/×\d/.test(radarRow) || !radarRow.includes('Chaîne A')) errors.push('radar : vidéo qui explose mal affichée : ' + radarRow);
+log('radar :', radarRow.replace(/\s+/g, ' ').slice(0, 140));
+const mineRow = await panel.locator('#radarMine').innerText();
+if (!/abcdefghijk|Ma chanson/.test(mineRow)) errors.push('radar : ma vidéo remplie dans Studio n\'est pas suivie : ' + mineRow.slice(0, 200));
+log('ma vidéo suivie :', mineRow.replace(/\s+/g, ' ').slice(0, 160));
+const tdBefore = gemLog.length;
+await panel.locator('#radarList [data-td]').first().click();
+await panel.waitForSelector('#teardownBox .tp-alert--info', { timeout: 60000 });
+const td = await panel.locator('#teardownBox').innerText();
+if (!td.includes('Le refrain arrive dès 0:03')) errors.push('radar : analyse « pourquoi » absente');
+if (!gemLog.slice(tdBefore).some((x) => /VIRAL TEARDOWN/.test(x.prompt) || /TUBEPILOT MASTER/.test(x.prompt))) errors.push('radar : Gemini n\'a pas reçu la demande « pourquoi »');
+log('pourquoi elle a explosé :', td.replace(/\s+/g, ' ').slice(0, 160));
+await panel.locator('#tab-radar').screenshot({ path: path.join(shots, '10-radar.png') });
+
 // 4. Page vidéo YouTube
 const yt = await ctx.newPage();
 watch(yt, 'watch');

@@ -30,6 +30,7 @@ export const DEFAULTS = {
   ytKey: '',                // clé YouTube Data API (facultative : concurrence, tendances)
   transcribeLyrics: true,
   competitorLookup: true,   // recherche YouTube des concurrents (API, ~102 unités par mot-clé comparé)
+  radarAlerts: true,        // radar viral : notifications (relevé toutes les 4 h, ~2 unités par chaîne suivie)
   autopilot: true,          // analyse automatique dès l'import dans Studio
   autofill: true,           // écrire le résultat dans Studio à la fin de l'analyse
   replaceExisting: true,    // remplacer l'ancien titre, l'ancienne description et les anciens tags
@@ -92,7 +93,7 @@ export const YT_DATA_MAX_AGE = 30 * 86400000;
 export async function pruneCache(maxAgeMs = 7 * 86400000) {
   const all = await area().get(null);
   const now = Date.now();
-  const old = Object.keys(all).filter((k) => k.startsWith('c:') && now - (all[k]?.ts || 0) > maxAgeMs);
+  const old = Object.keys(all).filter((k) => (k.startsWith('c:') && now - (all[k]?.ts || 0) > maxAgeMs) || (k.startsWith('td:') && now - (all[k]?.ts || 0) > (maxAgeMs === 0 ? 0 : 7 * 86400000)));
   if (all.compCache && now - (all.compCache.ts || 0) > YT_DATA_MAX_AGE) old.push('compCache');
   if (old.length) await area().remove(old);
   // old analyses keep their SEO text but lose the YouTube statistics (competitor videos, views, subscribers)

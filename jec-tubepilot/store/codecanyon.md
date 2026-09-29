@@ -13,6 +13,7 @@ TubePilot is a complete, production-ready Manifest V3 Chrome extension that brin
 - Works with the user’s own Gemini account (gemini.google.com): no API key, no AI Studio quota; Fast or Pro model selected automatically; expert master prompt (YouTube strategist, ethnomusicologist, SEO specialist, hook copywriter); link retry; JSON repair
 - Keyword research from real YouTube suggestions in the style’s country and language
 - Google Keyword Planner CSV import (UTF-16/UTF-8, 7 languages of headers, volume ranges) blended into the ranking and the AI brief
+- Viral radar: speed of followed channels’ new videos vs their usual pace (alarms, notifications, icon badge), “Why it took off” Gemini teardown, own videos vs niche pace with title alternatives
 - Competition score (YouTube Data API), competitor tracking with outlier videos, trends by country
 - YouTube Studio card (Shadow DOM), autopilot on upload, replacement of the old title / description / tags, comment to pin, tag suggestions, YouTube watch-page card
 - YouTube policy checker (titles, description, tags, hashtags, chapters, synthetic content, covers)
@@ -20,7 +21,7 @@ TubePilot is a complete, production-ready Manifest V3 Chrome extension that brin
 - i18n: English, French, Arabic (RTL) — add a language by copying one file in `lib/locales/`
 - Design system with tokens, light / dark themes, SVG icon set
 - No server, no tracking; local storage only; 30-day YouTube data retention
-- 30 unit tests (Node) + end-to-end test (Playwright) with mocked Google services
+- 34 unit tests (Node) + end-to-end test (Playwright) with mocked Google services
 
 ### Requirements for the buyer
 - Chrome 116+ · a Google account signed in to Gemini · optional YouTube Data API key, Google Ads account (Keyword Planner export)

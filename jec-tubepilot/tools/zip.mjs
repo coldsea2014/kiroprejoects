@@ -1,6 +1,8 @@
 // TubePilot — crée dans dist/ :
 //   tubepilot-<version>.zip         l'extension seule (à envoyer au Chrome Web Store, ou à décompresser puis « Charger l'extension non empaquetée »)
 //   tubepilot-<version>-source.zip  le code complet avec tests, outils, documentation et textes des boutiques (CodeCanyon)
+// Avec TP_YT_KEY=… : en plus tubepilot-<version>-personnel.zip, l'extension avec votre clé YouTube pré-remplie
+// (fichier local-config.json ajouté seulement dans ce zip : la clé n'est jamais écrite dans le dépôt ni dans les zips à vendre)
 import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'node:fs';
 import { deflateRawSync, crc32 } from 'node:zlib';
 import path from 'node:path';
@@ -20,16 +22,17 @@ function walk(dir, skip, out = []) {
   return out;
 }
 
-function zip(files, prefix, out) {
+function zip(files, prefix, out, extra = []) {
   // date DOS valide (sinon certains décompresseurs affichent 1980 ou refusent)
   const now = new Date();
   const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2);
   const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
   const locals = [], centrals = [];
   let offset = 0;
-  for (const file of files.sort()) {
-    const name = Buffer.from(prefix + path.relative(root, file).split(path.sep).join('/'), 'utf8');
-    const data = readFileSync(file);
+  const entries = [...files.sort().map((file) => ({ name: path.relative(root, file).split(path.sep).join('/'), data: () => readFileSync(file) })), ...extra.map((x) => ({ name: x.name, data: () => Buffer.from(x.data, 'utf8') }))];
+  for (const entry of entries) {
+    const name = Buffer.from(prefix + entry.name, 'utf8');
+    const data = entry.data();
     const comp = deflateRawSync(data, { level: 9 });
     const crc = crc32(data);
     const head = Buffer.alloc(30);
@@ -54,6 +57,11 @@ function zip(files, prefix, out) {
 }
 
 // extension : uniquement ce que Chrome charge (+ docs, ouvertes depuis les réglages)
-const extSkip = new Set(['tests', 'tools', 'store', 'package.json', 'package-lock.json', 'README.md', 'CHANGELOG.md', '.gitignore', 'icons/icon.svg']);
+const extSkip = new Set(['tests', 'tools', 'store', 'package.json', 'package-lock.json', 'README.md', 'CHANGELOG.md', '.gitignore', 'icons/icon.svg', 'local-config.json']);
 zip(walk(root, extSkip), 'tubepilot/', path.join(root, 'dist', `tubepilot-${version}.zip`));
-zip(walk(root, new Set()), 'tubepilot-source/', path.join(root, 'dist', `tubepilot-${version}-source.zip`));
+zip(walk(root, new Set(['local-config.json'])), 'tubepilot-source/', path.join(root, 'dist', `tubepilot-${version}-source.zip`));
+const ytKey = (process.env.TP_YT_KEY || '').trim();
+if (ytKey) {
+  if (!/^AIza[\w-]{30,}$/.test(ytKey)) throw new Error('TP_YT_KEY ne ressemble pas à une clé API Google');
+  zip(walk(root, extSkip), 'tubepilot/', path.join(root, 'dist', `tubepilot-${version}-personnel.zip`), [{ name: 'local-config.json', data: JSON.stringify({ ytKey }) }]);
+}

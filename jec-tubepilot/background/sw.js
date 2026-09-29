@@ -1,6 +1,7 @@
 // TubePilot — service worker : panneau latéral, messages des pages YouTube, installation
 import { t, I18n } from '../lib/lang.js';
-import { pruneCache, getCompetitors, setCompetitors } from '../lib/storage.js';
+import { pruneCache, getCompetitors, setCompetitors, getSettings, setSettings } from '../lib/storage.js';
+import * as Radar from '../lib/radar.js';
 import { suggest } from '../lib/keywords.js';
 import * as YT from '../lib/ytapi.js';
 
@@ -21,16 +22,73 @@ async function injectOpenTabs() {
   }
 }
 
+// Version personnelle : une clé YouTube fournie dans local-config.json (jamais dans le code ni dans le dépôt)
+async function importLocalConfig() {
+  try {
+    const res = await fetch(chrome.runtime.getURL('local-config.json'));
+    if (!res.ok) return;
+    const cfg = await res.json();
+    const settings = await getSettings();
+    if (cfg.ytKey && !settings.ytKey) await setSettings({ ytKey: String(cfg.ytKey).trim() });
+  } catch (e) { /* pas de configuration personnelle */ }
+}
+
+/* ---------- Radar viral : relevé toutes les 4 heures, alertes et pastille sur l'icône ---------- */
+const RADAR_ALARM = 'tp-radar';
+function ensureRadarAlarm() {
+  chrome.alarms?.get(RADAR_ALARM).then((a) => { if (!a) chrome.alarms.create(RADAR_ALARM, { delayInMinutes: 2, periodInMinutes: 240 }); }).catch(() => {});
+}
+
+async function setBadge(n) {
+  try {
+    await chrome.action.setBadgeBackgroundColor({ color: '#db2777' });
+    await chrome.action.setBadgeText({ text: n ? String(Math.min(n, 99)) : '' });
+  } catch (e) { /* pas d'icône */ }
+}
+
+function notify(url, title, message) {
+  if (!chrome.notifications) return;
+  chrome.notifications.create('tp|' + url + '|' + Date.now(), { type: 'basic', iconUrl: chrome.runtime.getURL('icons/icon128.png'), title, message, priority: 1 }).catch?.(() => {});
+}
+
+async function runRadar({ alerts = true } = {}) {
+  const r = await Radar.scan();
+  if (r.skipped) return r;
+  const settings = await getSettings();
+  if (alerts && settings.radarAlerts !== false) {
+    for (const e of r.hot.slice(0, 3)) {
+      notify('https://www.youtube.com/watch?v=' + e.id, t('radar.notifHot', { channel: e.channelTitle, ratio: e.ratio >= 10 ? Math.round(e.ratio) : e.ratio.toFixed(1) }), `${e.title} — ${Math.round(e.vph).toLocaleString(I18n.locale())} ${t('watch.vph')}`);
+    }
+    if (r.hot.length > 3) notify('https://www.youtube.com/', t('radar.notifMore', { n: r.hot.length - 3 }), '');
+    for (const e of r.behind) {
+      notify(`https://studio.youtube.com/video/${e.id}/edit`, t('radar.notifBehind', { ratio: e.ratio.toFixed(1) }), `${e.title} — ${t('radar.tryTitle')}`);
+    }
+  }
+  await setBadge(r.radar.unseen || 0);
+  return { hot: r.hot.length, behind: r.behind.length, quotaHit: r.quotaHit };
+}
+
+chrome.alarms?.onAlarm.addListener((a) => { if (a.name === RADAR_ALARM) runRadar().catch(() => {}); });
+chrome.notifications?.onClicked.addListener((id) => {
+  const url = String(id).split('|')[1];
+  if (/^https:\/\/(www|studio)\.youtube\.com\//.test(url || '')) chrome.tabs.create({ url });
+  chrome.notifications.clear(id);
+});
+
 chrome.runtime.onInstalled.addListener(async (d) => {
   panelOnClick();
+  await importLocalConfig();
   if (d.reason === 'install') chrome.runtime.openOptionsPage();
   pruneCache().catch(() => {});
+  ensureRadarAlarm();
   injectOpenTabs();
 });
 
 chrome.runtime.onStartup.addListener(() => {
   panelOnClick();
+  importLocalConfig();
   pruneCache().catch(() => {});
+  ensureRadarAlarm();
 });
 
 async function addCompetitor(input) {
@@ -64,6 +122,18 @@ const handlers = {
   },
   addCompetitor(m) {
     return addCompetitor(m.channel);
+  },
+  // TubePilot a rempli Studio pour cette vidéo : elle est suivie contre la niche après publication
+  track(m) {
+    return Radar.track({ videoId: m.videoId, title: m.title, packKey: m.packKey });
+  },
+  radarScan() {
+    return runRadar({ alerts: false });
+  },
+  async radarSeen() {
+    await Radar.markSeen();
+    await setBadge(0);
+    return true;
   }
 };
 

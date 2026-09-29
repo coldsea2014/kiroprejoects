@@ -1,7 +1,8 @@
 // TubePilot — panneau latéral : vidéo (écoute + SEO), mots-clés (+ Keyword Planner), concurrents, tendances, historique
 import { t, I18n } from '../lib/lang.js';
 import { getSettings, setSettings, getPack, savePack, listPacks, deletePack, getCompetitors, setCompetitors, getQuota } from '../lib/storage.js';
-import { run, fromManual, analyzeHooks, STEPS } from '../lib/pipeline.js';
+import { run, fromManual, analyzeHooks, teardown, STEPS } from '../lib/pipeline.js';
+import { loadRadar, hotList, nicheVph, untrack, scan as radarScan, HOT_RATIO, BEHIND_RATIO } from '../lib/radar.js';
 import { research, competition } from '../lib/keywords.js';
 import { importKeywordPlanner, kpStats, clearKeywordPlanner } from '../lib/kpimport.js';
 import * as YT from '../lib/ytapi.js';
@@ -38,6 +39,7 @@ function showTab(name) {
   show($('#actionBar'), name === 'video' && !!pack);
   if (name === 'history') renderHistory();
   if (name === 'competitors') renderCompetitors();
+  if (name === 'radar') { renderRadar(); chrome.runtime.sendMessage({ type: 'radarSeen' }).catch(() => {}); show($('#radarBadge'), false); }
   if (name === 'keywords') renderKp();
 }
 
@@ -644,6 +646,120 @@ async function runHooks(titles, topic, out) {
   }
 }
 
+
+/* =============== Radar viral =============== */
+const xr = (r) => (r >= 10 ? Math.round(r) : r.toFixed(1));
+const tdVideos = new Map();
+
+async function renderRadar() {
+  const r = await loadRadar();
+  const comps = await getCompetitors();
+  const list = hotList(r);
+  list.forEach((v) => tdVideos.set(v.id, v));
+  const info = [r.ts ? t('radar.info', { ago: F.ago(r.ts), n: comps.length }) : t('radar.never')];
+  if (list.length && !list.some((v) => v.measured)) info.push(t('radar.warming'));
+  $('#radarInfo').textContent = info.join(' · ');
+  const box = $('#radarList');
+  if (!settings.ytKey) box.innerHTML = `<div class="tp-alert tp-alert--warn">${ic('key', 14)}<span>${esc(t('radar.needKey'))} <a class="tp-link" data-open-options>${esc(t('common.openSettings'))}</a></span></div>`;
+  else if (!comps.length) box.innerHTML = `<div class="tp-empty">${ic('users', 22)}<span class="tp-small">${esc(t('radar.needComp'))}</span><button class="tp-btn tp-btn--sm" data-goto="competitors">${ic('plus', 13)} ${esc(t('radar.goComp'))}</button></div>`;
+  else if (!list.length) box.innerHTML = `<div class="tp-small tp-faint">${esc(r.ts ? t('radar.empty', { n: comps.length }) : t('radar.scanHint'))}</div>`;
+  else {
+    box.innerHTML = list.map((v) => `<div class="tp-item sp-vid ${v.hot ? 'sp-hot' : ''}">
+      <img class="sp-rthumb" src="${esc(v.thumb || '')}" alt="" loading="lazy">
+      <div class="tp-item__main"><a class="tp-bidi" href="https://www.youtube.com/watch?v=${esc(v.id)}" target="_blank" rel="noopener">${esc(v.title)}</a>
+        <div class="tp-item__meta">${esc(v.channelTitle)} · ${F.num(Math.round(v.vph))} ${esc(t('watch.vph'))} · ${F.num(v.views)} ${esc(t('watch.views'))} · ${esc(F.ago(v.publishedAt))} · ${esc(v.measured ? t('radar.measured') : t('radar.estimated'))}</div></div>
+      <div class="tp-stack tp-stack--sm" style="justify-items:end">
+        <span class="tp-pill tp-pill--${v.ratio >= HOT_RATIO ? 'good' : v.ratio >= 1.5 ? 'mid' : 'neutral'}" title="${esc(t('radar.ratioHint'))}">${v.hot ? '🔥 ' : ''}×${xr(v.ratio)}</span>
+        <button class="tp-btn tp-btn--sm" data-td="${esc(v.id)}">${ic('sparkles', 13)} ${esc(t('radar.why'))}</button></div></div>`).join('');
+    box.querySelectorAll('img.sp-rthumb').forEach((img) => img.addEventListener('error', () => img.remove(), { once: true }));
+  }
+  renderMine(r);
+}
+
+async function renderMine(r) {
+  const niche = nicheVph(r);
+  const mine = Object.values(r.mine || {}).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+  const box = $('#radarMine');
+  if (!mine.length) { box.innerHTML = `<div class="tp-small tp-faint">${esc(t('radar.mineEmpty'))}</div>`; return; }
+  const rows = await Promise.all(mine.map(async (m) => {
+    let status;
+    if (!m.publishedAt || m.views == null) status = `<span class="tp-chip">${esc(t('radar.waiting'))}</span>`;
+    else if (!niche || m.ratio == null) status = `<span class="tp-chip">${esc(t('radar.noNiche'))}</span>`;
+    else if (m.ratio >= 1.2) status = `<span class="tp-chip tp-chip--good">${esc(t('radar.ahead', { r: xr(m.ratio) }))}</span>`;
+    else if (m.ratio >= BEHIND_RATIO) status = `<span class="tp-chip">${esc(t('radar.onPar', { r: xr(m.ratio) }))}</span>`;
+    else status = `<span class="tp-chip tp-chip--hot">${esc(t('radar.behind', { r: xr(m.ratio) }))}</span>`;
+    let tips = '';
+    if (m.ratio != null && m.ratio < BEHIND_RATIO) {
+      const p = await getPack(m.packKey || 'vid:' + m.id, 'vid:' + m.id);
+      const alts = F.uniq([...(p?.seo?.abTitles || []).map((x) => x.text || x), ...(p?.seo?.titles || []).slice(1, 4).map((x) => x.text)]).filter((x) => x && F.norm(x) !== F.norm(m.title)).slice(0, 3);
+      tips = `<div class="tp-stack tp-stack--sm"><b class="tp-small">${esc(t('radar.tryTitle'))}</b>${alts.map((x) => `<div class="tp-row tp-row--nowrap tp-small"><span class="tp-grow tp-bidi">${esc(x)}</span><button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-copy="${esc(x)}" title="${esc(t('common.copy'))}">${ic('copy', 13)}</button></div>`).join('')}
+        <a class="tp-btn tp-btn--sm" href="https://studio.youtube.com/video/${esc(m.id)}/edit" target="_blank" rel="noopener">${ic('external', 13)} ${esc(t('radar.openStudio'))}</a></div>`;
+    }
+    return `<div class="tp-item"><div class="tp-item__main tp-stack tp-stack--sm">
+      <a class="tp-bidi" href="https://www.youtube.com/watch?v=${esc(m.id)}" target="_blank" rel="noopener"><b>${esc(m.title || m.id)}</b></a>
+      <div class="tp-item__meta">${m.publishedAt ? `${esc(F.ago(m.publishedAt))} · ${F.num(m.views || 0)} ${esc(t('watch.views'))} · ${F.num(Math.round(m.vph || 0))} ${esc(t('watch.vph'))}${niche ? ` · ${esc(t('radar.nicheVph', { n: F.num(Math.round(niche)) }))}` : ''}` : ''}</div>
+      <div class="tp-row">${status}</div>${tips}</div>
+      <button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-untrack="${esc(m.id)}" title="${esc(t('radar.stopTracking'))}">${ic('x', 13)}</button></div>`;
+  }));
+  box.innerHTML = rows.join('');
+}
+
+async function scanRadar() {
+  const b = $('#radarScan');
+  b.disabled = true;
+  $('#radarInfo').innerHTML = `<span class="tp-spinner"></span> ${esc(t('common.loading'))}`;
+  try {
+    const res = await radarScan();
+    if (res.quotaHit) flash(t('radar.quota'));
+    else if (res.skipped !== 'key') flash(t('radar.scanned', { hot: res.hot.length }));
+    chrome.runtime.sendMessage({ type: 'radarSeen' }).catch(() => {});
+  } catch (e) { flash(e.message); }
+  b.disabled = false;
+  renderRadar();
+  renderFooter();
+}
+
+async function runTeardown(video, { force = false } = {}) {
+  showTab('radar');
+  const box = $('#teardownBox');
+  box.innerHTML = `<div class="tp-card"><div class="tp-card__body"><div class="tp-row tp-row--nowrap"><span class="tp-spinner"></span><span class="tp-small"><b>${esc(t('td.title'))}</b> — <span id="tdStatus">${esc(t('td.running'))}</span></span></div></div></div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  try {
+    const d = await teardown(video, { profileId: profile().id, force, onStatus: (m) => { const el = $('#tdStatus'); if (el && m.text) el.textContent = m.text; } });
+    renderTeardown(d);
+  } catch (e) {
+    box.innerHTML = `<div class="tp-alert tp-alert--danger">${ic('alert', 14)}<span>${esc(e.message)}</span></div>`;
+  }
+}
+
+function renderTeardown(d) {
+  const list = (a, icon) => (a || []).map((x) => `<li>${ic(icon, 13)} <span class="tp-bidi">${esc(x)}</span></li>`).join('');
+  const m = d.music || {};
+  const chips = [m.style && `<span class="tp-chip tp-chip--accent">${ic('music', 12)}${esc(m.style)}</span>`, m.bpm && `<span class="tp-chip">${Math.round(m.bpm)} BPM</span>`,
+    m.chorus_start != null && `<span class="tp-chip">${esc(t('td.chorus', { t: F.ts(m.chorus_start) }))}</span>`, m.best_moment != null && `<span class="tp-chip tp-chip--hot">${ic('flame', 12)}${esc(t('td.best', { t: F.ts(m.best_moment) }))}</span>`].filter(Boolean).join('');
+  const me = d.for_my_channel || {};
+  $('#teardownBox').innerHTML = `<div class="tp-card">
+    <div class="tp-card__head"><span class="tp-acc__icon">${ic('sparkles', 15)}</span><div class="tp-grow"><b>${esc(t('td.title'))}</b><div class="tp-tiny tp-faint tp-ellipsis tp-bidi">${esc(d.video?.title || '')}</div></div>
+      <button class="tp-btn tp-btn--ghost tp-btn--sm" data-td-again="${esc(d.video?.id || '')}">${ic('refresh', 13)} ${esc(t('td.again'))}</button></div>
+    <div class="tp-card__body tp-stack">
+      <div class="tp-alert tp-alert--info">${ic('flame', 14)}<b class="tp-bidi">${esc(d.verdict || '')}</b></div>
+      ${chips ? `<div class="tp-chips">${chips}</div>` : ''}
+      ${d.hook_first_seconds ? `<div class="tp-small"><b>${esc(t('td.hook'))}</b> <span class="tp-bidi">${esc(d.hook_first_seconds)}</span></div>` : ''}
+      ${(d.viral_factors || []).length ? `<div class="tp-stack tp-stack--sm"><b class="tp-small">${esc(t('td.factors'))}</b>${d.viral_factors.map((f) => `<div class="sp-factor tp-small"><b class="tp-bidi">${esc(f.factor)}</b><span class="tp-faint">${F.clamp(+f.weight || 1, 1, 5)}/5</span>${bar((F.clamp(+f.weight || 1, 1, 5) / 5) * 100)}<span class="tp-muted tp-bidi" style="grid-column:1/-1">${esc(f.evidence || '')}</span></div>`).join('')}</div>` : ''}
+      <div class="tp-kv tp-small">
+        ${d.title_formula ? `<span>${esc(t('td.titleFormula'))}</span><b class="tp-bidi">${esc(d.title_formula)}</b>` : ''}
+        ${d.thumbnail_formula ? `<span>${esc(t('td.thumb'))}</span><span class="tp-bidi">${esc(d.thumbnail_formula)}</span>` : ''}
+        ${d.emotional_trigger ? `<span>${esc(t('td.emotion'))}</span><span class="tp-bidi">${esc(d.emotional_trigger)}</span>` : ''}
+        ${d.audience ? `<span>${esc(t('td.audience'))}</span><span class="tp-bidi">${esc(d.audience)}</span>` : ''}
+      </div>
+      ${(d.copy || []).length ? `<div class="tp-small"><b>${esc(t('td.copy'))}</b><ul class="tp-issues">${list(d.copy, 'check')}</ul></div>` : ''}
+      ${(d.avoid || []).length ? `<div class="tp-small"><b>${esc(t('td.avoid'))}</b><ul class="tp-issues">${list(d.avoid, 'alert')}</ul></div>` : ''}
+      ${(me.title_ideas || []).length ? `<div class="tp-stack tp-stack--sm"><b class="tp-small">${esc(t('td.forMe'))}</b>${me.title_ideas.map((x) => `<div class="tp-item">${I.pill(S.scoreTitle(x, {}).score, t('score.title'))}<div class="tp-item__main tp-bidi">${esc(x)}</div><button class="tp-btn tp-btn--ghost tp-btn--icon tp-btn--sm" data-copy="${esc(x)}" title="${esc(t('common.copy'))}">${ic('copy', 13)}</button></div>`).join('')}</div>` : ''}
+      ${me.short_idea ? `<div class="tp-small"><b>${esc(t('td.short'))}</b> <span class="tp-bidi">${esc(me.short_idea)}</span></div>` : ''}
+      ${me.timing ? `<div class="tp-small"><b>${esc(t('td.timing'))}</b> <span class="tp-bidi">${esc(me.timing)}</span></div>` : ''}
+    </div></div>`;
+}
+
 /* =============== Concurrents =============== */
 async function renderCompetitors() {
   const list = await getCompetitors();
@@ -688,9 +804,10 @@ async function refreshCompetitors() {
 function renderCompVideos(videos, ts) {
   const box = $('#compVideos');
   box.dataset.filled = '1';
+  videos.slice(0, 30).forEach((v) => tdVideos.set(v.id, v));
   box.innerHTML = `<div class="tp-tiny tp-faint">${esc(t('comp.updated', { ago: F.ago(ts) }))}</div>` + videos.slice(0, 30).map((v) => `<div class="tp-item sp-vid"><span class="tp-pill tp-pill--${v.outlier >= 3 ? 'good' : v.outlier >= 1.5 ? 'mid' : 'bad'}" title="${esc(t('comp.outlierHint'))}">×${v.outlier >= 10 ? Math.round(v.outlier) : v.outlier.toFixed(1)}</span>
     <div class="tp-item__main"><a class="tp-bidi" href="https://www.youtube.com/watch?v=${esc(v.id)}" target="_blank" rel="noopener">${esc(v.title)}</a><div class="tp-item__meta">${esc(v.channelTitle)} · ${F.num(v.views)} ${esc(t('watch.views'))} · ${F.num(v.vph)}/h · ${esc(F.ago(v.publishedAt))}</div>
-    <div class="tp-chips">${S.detectHooks(v.title).map((h) => `<span class="tp-chip" style="height:20px;font-size:11px">${esc(t('hook.' + h))}</span>`).join('')}</div></div></div>`).join('');
+    <div class="tp-chips">${S.detectHooks(v.title).map((h) => `<span class="tp-chip" style="height:20px;font-size:11px">${esc(t('hook.' + h))}</span>`).join('')}<button class="tp-btn tp-btn--ghost tp-btn--sm" style="height:22px" data-td="${esc(v.id)}">${ic('sparkles', 12)} ${esc(t('radar.why'))}</button></div></div></div>`).join('');
   const winners = videos.filter((v) => v.outlier >= 1.5).slice(0, 40);
   const base = winners.length >= 5 ? winners : videos.slice(0, 20);
   const pat = S.titlePatterns(base.map((v) => v.title));
@@ -762,6 +879,7 @@ async function handleIntent(intent) {
     if (intent.autorun && !job && !studioJob) runNow();
   }
   if (intent.tab === 'keywords' && intent.keyword) kwSearch(intent.keyword);
+  if (intent.tab === 'radar' && intent.teardown?.id) { tdVideos.set(intent.teardown.id, intent.teardown); runTeardown(intent.teardown); }
   if (intent.tab === 'competitors' && intent.channelId) {
     const list = await getCompetitors();
     if (!list.some((c) => c.id === intent.channelId)) $('#compIn').value = intent.channelId;
@@ -790,6 +908,14 @@ function bind() {
     if (op) getPack(op.dataset.open).then((p) => { if (p) { showPack(p); showTab('video'); } });
     const del = e.target.closest('[data-del]');
     if (del) deletePack(del.dataset.del).then(renderHistory);
+    const td = e.target.closest('[data-td]');
+    if (td && tdVideos.get(td.dataset.td)) runTeardown(tdVideos.get(td.dataset.td));
+    const tda = e.target.closest('[data-td-again]');
+    if (tda && tdVideos.get(tda.dataset.tdAgain)) runTeardown(tdVideos.get(tda.dataset.tdAgain), { force: true });
+    const un = e.target.closest('[data-untrack]');
+    if (un) untrack(un.dataset.untrack).then(renderRadar);
+    const go = e.target.closest('[data-goto]');
+    if (go) showTab(go.dataset.goto);
   });
   $$('input[name=src]').forEach((r) => r.addEventListener('change', () => { srcTouched = true; syncSrc(); }));
   $('#runBtn').addEventListener('click', runNow);
@@ -812,6 +938,7 @@ function bind() {
   $('#compIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') addCompetitor(); });
   $('#compRefresh').addEventListener('click', () => refreshCompetitors().catch((e) => { $('#compVideos').innerHTML = `<div class="tp-alert tp-alert--danger">${ic('alert', 14)}<span>${esc(e.message)}</span></div>`; }));
   $('#trGo').addEventListener('click', loadTrends);
+  $('#radarScan').addEventListener('click', scanRadar);
 
   const refreshSoon = debounce(refreshContext, 300);
   chrome.tabs.onActivated.addListener(refreshSoon);
@@ -822,6 +949,12 @@ function bind() {
     if (area === 'session' && ch.panelIntent?.newValue) handleIntent(ch.panelIntent.newValue);
     if (area !== 'local') return;
     if (ch.settings) { await loadSettings(); if (pack) renderResult(); }
+    if (ch.radar) {
+      const n = ch.radar.newValue?.unseen || 0;
+      $('#radarBadge').textContent = n;
+      show($('#radarBadge'), n > 0 && !$('#tab-radar').classList.contains('on'));
+      if ($('#tab-radar').classList.contains('on')) renderRadar();
+    }
     const want = studioJob?.key || pack?.key;
     if (want && ch['pack:' + want]?.newValue && !job) {
       const p = ch['pack:' + want].newValue;
@@ -859,6 +992,8 @@ function bind() {
     const last = (await listPacks())[0];
     if (last && Date.now() - last.createdAt < 6 * 3600000) { const p = await getPack(last.key); if (p) showPack(p); }
   }
+  const r0 = await loadRadar();
+  if (r0.unseen) { $('#radarBadge').textContent = r0.unseen; show($('#radarBadge'), true); }
   const { panelIntent } = await chrome.storage.session.get('panelIntent');
   handleIntent(panelIntent);
 })();

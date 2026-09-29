@@ -19,6 +19,11 @@ TubePilot is the SEO co-pilot for music channels on YouTube. Instead of guessing
 • Every music of the world: khaliji, sheilat, Iraqi rap, Yemeni, Egyptian, Maghrebi chaabi / rai / gnawa, afrobeats, amapiano, trap, drill, RnB, jazz and fusions
 • The 2–5 best moments, timestamped to the second
 
+📡 VIRAL RADAR
+• Every 4 h, the speed of the new videos of the channels you follow vs their usual pace — 🔥 alert when one takes off
+• “Why it took off”: Gemini watches and listens to the video and turns its levers into 3 original titles for your next song
+• Your own videos vs the pace of your niche for 7 days, with titles to test when one falls behind
+
 🔑 REAL KEYWORDS, NOT GUESSES
 • Real YouTube search suggestions (A→Z) in the country and language of the style heard
 • Import your Google Keyword Planner CSV: real monthly volumes in every table and in the AI brief
@@ -72,6 +77,8 @@ Help YouTube music creators write and insert SEO metadata (titles, description w
 | storage, unlimitedStorage | Stores settings, channel profiles, analyses history and imported Keyword Planner volumes locally. Analyses of long videos can exceed the default quota. |
 | sidePanel | The main interface (analysis report, keywords, competitors, trends, history) is a side panel. |
 | scripting | Re-injects the content scripts into YouTube / Studio tabs that were already open when the extension is installed or updated, so the user does not have to reload them. |
+| alarms | Runs the viral radar reading every 4 hours in the background (public view counts of the channels the user follows). |
+| notifications | Local notifications when a followed channel’s video takes off or when the user’s own video falls behind its niche. |
 | clipboardWrite | “Copy” buttons for titles, description, tags, hashtags and the manual-mode prompt. |
 | Host: studio.youtube.com | Reads the video being edited (title, description, tags, chosen file) and inserts the accepted proposals. |
 | Host: www.youtube.com | Analysis card on video pages; oEmbed check whether a video is public. |

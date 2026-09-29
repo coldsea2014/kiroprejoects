@@ -63,10 +63,11 @@ function shapeVideo(v) {
   };
 }
 
-export async function videos(ids) {
+// fresh : chiffres du moment (radar viral), sans le cache de 3 h
+export async function videos(ids, { fresh = false } = {}) {
   const out = [];
   for (let i = 0; i < ids.length; i += 50) {
-    const r = await yt('videos', { part: 'snippet,statistics,contentDetails', id: ids.slice(i, i + 50).join(','), maxResults: 50 }, { units: 1, cacheMs: 3 * 3600000 });
+    const r = await yt('videos', { part: 'snippet,statistics,contentDetails', id: ids.slice(i, i + 50).join(','), maxResults: 50 }, { units: 1, cacheMs: fresh ? 0 : 3 * 3600000 });
     (r.items || []).forEach((v) => out.push(shapeVideo(v)));
   }
   return out;
@@ -130,13 +131,13 @@ export async function searchTop(q, { regionCode, relevanceLanguage, max = 15, or
   return { videos: vids, total: r.pageInfo?.totalResults || 0 };
 }
 
-// Dernières vidéos d'une chaîne (3 unités)
-export async function recentUploads(channel, max = 15) {
+// Dernières vidéos d'une chaîne (2 à 3 unités)
+export async function recentUploads(channel, max = 15, { fresh = false } = {}) {
   const uploads = channel.uploads || (await channels([channel.id]))[0]?.uploads;
   if (!uploads) return [];
-  const r = await yt('playlistItems', { part: 'contentDetails', playlistId: uploads, maxResults: max }, { units: 1, cacheMs: 2 * 3600000 });
+  const r = await yt('playlistItems', { part: 'contentDetails', playlistId: uploads, maxResults: max }, { units: 1, cacheMs: fresh ? 20 * 60000 : 2 * 3600000 });
   const ids = (r.items || []).map((x) => x.contentDetails?.videoId).filter(Boolean);
-  return ids.length ? videos(ids) : [];
+  return ids.length ? videos(ids, { fresh }) : [];
 }
 
 // Tendances d'un pays (1 unité)

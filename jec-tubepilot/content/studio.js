@@ -452,6 +452,13 @@
     ].filter(Boolean).join(' ');
     render();
     await healLayout();
+    if (filled.length) trackVideo(p);
+  }
+
+  // la vidéo remplie par TubePilot est suivie contre la niche pendant 7 jours après publication (radar viral)
+  function trackVideo(p) {
+    const vid = videoId();
+    if (vid && p?.seo) UI.send('track', { videoId: vid, title: p.seo.titles[0]?.text || '', packKey: p.key }).catch(() => {});
   }
 
   /* ---------- Carte entre le bloc Titre et le bloc Description ---------- */
@@ -733,7 +740,7 @@
       else if (act === 'title' && s) { await apply({ title: s.titles[+b.dataset.i].text }); UI.toast(t('toast.titleApplied')); }
       else if (act === 'desc' && s) { await apply({ description: s.description }); UI.toast(t('toast.descInserted')); }
       else if (act === 'tags' && s) { await apply({ tags: s.tags }); UI.toast(t('toast.tagsInserted')); }
-      else if (act === 'all' && s) { const d = await apply({ title: s.titles[0].text, description: s.description, tags: s.tags }); UI.toast(t('toast.inserted', { fields: d.join(', ') })); }
+      else if (act === 'all' && s) { const d = await apply({ title: s.titles[0].text, description: s.description, tags: s.tags }); UI.toast(t('toast.inserted', { fields: d.join(', ') })); trackVideo(pack); }
       else if (act === 'copy' && s) {
         const v = { hashtags: s.hashtags.join(' '), pinned: s.pinnedComment, description: s.description, tags: s.tags.join(', ') }[b.dataset.what] || '';
         await UI.copy(v);

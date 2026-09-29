@@ -326,6 +326,49 @@ ${rules(ctx)}`;
   return { system, text };
 }
 
+/* ---------- 3b. Viral teardown of a competitor video ---------- */
+export const TEARDOWN_SCHEMA = OBJ({
+  verdict: STR('one sentence: the main reason this video took off (explanation language)'),
+  hook_first_seconds: STR('what happens in the first 5 seconds (sound and image) and why it stops the scroll (explanation language)'),
+  music: OBJ({ style: STR('precise style / rhythm'), bpm: NUM(), chorus_start: NUM('seconds'), best_moment: NUM('seconds of the strongest moment'), best_moment_why: STR() }, ['style']),
+  viral_factors: ARR(OBJ({ factor: STR('short name'), evidence: STR('what you heard / saw / read that proves it'), weight: INT('1 (minor) to 5 (decisive)') }, ['factor', 'evidence', 'weight']), '3 to 6 factors, most important first'),
+  title_formula: STR('generic template of the title with [variables], e.g. "[chorus] [emoji] [style + country] [year]"'),
+  thumbnail_formula: STR('what the thumbnail shows and why it gets the click'),
+  emotional_trigger: STR('the main emotion or share trigger'),
+  audience: STR('who watches and shares it, which countries'),
+  timeline: ARR(OBJ({ start: NUM('seconds'), label: STR() }), 'structure of the video'),
+  copy: ARR(STR(), '3 to 5 levers to reuse (formulas and timing — never the song, lyrics, title or thumbnail themselves)'),
+  avoid: ARR(STR(), 'what must NOT be copied (rights, misleading metadata, trademarks, artist names)'),
+  for_my_channel: OBJ({
+    title_ideas: ARR(STR(), '3 original titles for MY next song using the same levers, in my audience dialect, 40-70 characters, 1-2 emojis'),
+    short_idea: STR('a Short to make this week with the same hook mechanics'),
+    timing: STR('when to publish and how fast to react to this trend')
+  }, ['title_ideas'])
+}, ['verdict', 'hook_first_seconds', 'viral_factors', 'title_formula', 'copy', 'avoid', 'for_my_channel']);
+
+export function teardownPrompt(video, ctx = {}) {
+  const facts = [
+    `- Title: "${video.title}"`,
+    video.channelTitle ? `- Channel: ${video.channelTitle}` : '',
+    video.views != null ? `- Public views: ${F.num(video.views)}${video.publishedAt ? ` in ${Math.max(1, Math.round((Date.now() - Date.parse(video.publishedAt)) / 3600000))} h` : ''}` : '',
+    video.vph ? `- Current speed: ${F.num(Math.round(video.vph))} views/hour${video.ratio ? ` (×${video.ratio.toFixed(1)} the usual pace of this channel)` : ''}` : '',
+    video.tags?.length ? `- Public tags: ${video.tags.slice(0, 15).join(', ')}` : ''
+  ].filter(Boolean).join('\n');
+  return `${MASTER}
+
+TASK — VIRAL TEARDOWN. This competitor video is taking off right now. Explain WHY, then show how MY channel can use the same levers with its own songs — without copying anything.
+
+VIDEO TO ANALYZE (public YouTube video): https://www.youtube.com/watch?v=${video.id}
+Open it with your YouTube / video tool, watch it and LISTEN to the full audio. Base every point on what you actually hear and see, plus these public facts:
+${facts}
+
+${profileBlock(ctx.profile)}
+
+Rules: never suggest reusing the song, lyrics, title, thumbnail or artist name; only formulas, timing and mechanics. Explanatory fields are written in ${EXPL()}; title ideas are in my audience's dialect. If you CANNOT access the video, answer only: {"error": "no_access"}
+
+${jsonFormat(TEARDOWN_SCHEMA)}`;
+}
+
 /* ---------- 4. Subscription mode: gemini.google.com driven by the extension ---------- */
 // Readable JSON template built from a schema (the Gemini app does not accept an enforced schema)
 export function jsonExample(schema) {
